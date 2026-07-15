@@ -602,122 +602,90 @@ function ScorerCol({ title, list }) {
   );
 }
 
+function MarketTile({ label, value }) {
+  return (
+    <div className="market-tile">
+      <span>{label}</span>
+      <strong>{pct0(value)}</strong>
+    </div>
+  );
+}
+
+function MarketSection({ title, note, children }) {
+  return (
+    <div className="market-section">
+      <div className="market-section-head">
+        <span className="market-section-title">{title}</span>
+        {note && <span className="market-section-note">{note}</span>}
+      </div>
+      <div className="market-tiles">{children}</div>
+    </div>
+  );
+}
+
 function MarketsCard({ markets, corners, homeName, awayName }) {
   return (
     <section className="panel panel-market">
       <h2>Pasar taruhan</h2>
-      <p className="panel-sub">
-        Dihitung langsung dari distribusi skor penuh model (bukan cuma 6 skor
-        teratas), jadi angkanya presisi terhadap model — bukan estimasi kasar.
-      </p>
 
-      <div className="market-label">
-        Over/Under · peluang total gol kedua tim digabung tembus angka ini
-      </div>
-      <div className="market-grid">
-        {markets.over_under.map((ou) => (
-          <div className="stat-tile market" key={ou.line}>
-            <span>Over {ou.line}</span>
-            <strong>{pct0(ou.over)}</strong>
-          </div>
-        ))}
-      </div>
-      <p className="market-hint">
-        Contoh: Over 2.5 = {pct0(markets.over_under[1].over)} berarti peluang
-        laga berakhir dengan 3 gol atau lebih (gabungan kedua tim). Makin
-        tinggi garisnya, makin kecil peluangnya — wajar.
-      </p>
+      <div className="market-sections">
+        <MarketSection title="Over / Under" note="total gol">
+          {markets.over_under.map((ou) => (
+            <MarketTile key={ou.line} label={`Over ${ou.line}`} value={ou.over} />
+          ))}
+        </MarketSection>
 
-      <div className="market-label">
-        BTTS (Both Teams To Score) · kedua tim sama-sama cetak gol?
-      </div>
-      <div className="btts-row">
-        <div className="btts-chip">
-          <strong>{pct0(markets.btts.yes)}</strong>
-          <span>Ya, dua-duanya cetak gol</span>
-        </div>
-        <div className="btts-chip">
-          <strong>{pct0(markets.btts.no)}</strong>
-          <span>Tidak, ada yang clean sheet</span>
-        </div>
-      </div>
+        <MarketSection title="BTTS" note="dua tim cetak gol">
+          <MarketTile label="Ya" value={markets.btts.yes} />
+          <MarketTile label="Tidak" value={markets.btts.no} />
+        </MarketSection>
 
-      <div className="market-label">
-        Double Chance · gabungan 2 dari 3 kemungkinan hasil (lebih aman, odds
-        lebih kecil)
-      </div>
-      <div className="market-grid">
-        <div className="stat-tile market">
-          <span>{homeName} / Seri</span>
-          <strong>{pct0(markets.double_chance.home_or_draw)}</strong>
-        </div>
-        <div className="stat-tile market">
-          <span>{homeName} / {awayName}</span>
-          <strong>{pct0(markets.double_chance.home_or_away)}</strong>
-        </div>
-        <div className="stat-tile market">
-          <span>Seri / {awayName}</span>
-          <strong>{pct0(markets.double_chance.draw_or_away)}</strong>
-        </div>
-      </div>
+        <MarketSection title="Double Chance" note="2 dari 3 hasil">
+          <MarketTile label={`${homeName} / Seri`} value={markets.double_chance.home_or_draw} />
+          <MarketTile label={`${homeName} / ${awayName}`} value={markets.double_chance.home_or_away} />
+          <MarketTile label={`Seri / ${awayName}`} value={markets.double_chance.draw_or_away} />
+        </MarketSection>
 
-      <div className="market-label">
-        Handicap · peluang menang setelah garis gol ditambahkan/dikurangi
-      </div>
-      <div className="market-grid">
-        {markets.handicap.map((h) => (
-          <div className="stat-tile market" key={h.line}>
-            <span>{homeName} {h.line > 0 ? "+" : ""}{h.line}</span>
-            <strong>{pct0(h.home_covers)}</strong>
-          </div>
-        ))}
-      </div>
-      <p className="market-hint">
-        Semua garis dari sudut pandang {homeName}. Contoh: "{homeName} -0.5" =
-        peluang {homeName} menang telak (seri/kalah tidak cukup). "{homeName} +0.5"
-        = peluang {homeName} tidak kalah (menang atau seri sudah "menang" di
-        taruhan ini). Garis minus = harus menang lebih besar; garis plus =
-        boleh kalah tipis dan tetap dianggap unggul.
-      </p>
+        <MarketSection title="Handicap" note={`dari sisi ${homeName}`}>
+          {markets.handicap.map((h) => (
+            <MarketTile key={h.line} label={`${homeName} ${h.line > 0 ? "+" : ""}${h.line}`} value={h.home_covers} />
+          ))}
+        </MarketSection>
 
-      <div className="market-label">
-        Clean Sheet · tim ini tidak kebobolan sama sekali
-      </div>
-      <div className="btts-row">
-        <div className="btts-chip">
-          <strong>{pct0(markets.clean_sheet.home)}</strong>
-          <span>{homeName} clean sheet</span>
-        </div>
-        <div className="btts-chip">
-          <strong>{pct0(markets.clean_sheet.away)}</strong>
-          <span>{awayName} clean sheet</span>
-        </div>
-      </div>
+        <MarketSection title="Clean Sheet" note="tak kebobolan">
+          <MarketTile label={homeName} value={markets.clean_sheet.home} />
+          <MarketTile label={awayName} value={markets.clean_sheet.away} />
+        </MarketSection>
 
-      {corners && (
-        <>
-          <div className="market-label">
-            Total Corner · dari rata-rata corner tiap tim di turnamen ini
-          </div>
-          <div className="market-grid">
+        {corners && (
+          <MarketSection title="Total Corner" note="estimasi kasar">
             {corners.corners_over_under.map((c) => (
-              <div className="stat-tile market" key={c.line}>
-                <span>Over {c.line} corner</span>
-                <strong>{pct0(c.over)}</strong>
-              </div>
+              <MarketTile key={c.line} label={`Over ${c.line}`} value={c.over} />
             ))}
-          </div>
-          <p className="market-hint">
-            Ekspektasi: {homeName} {corners.corners_expected.home} + {awayName}{" "}
-            {corners.corners_expected.away} = {corners.corners_expected.total} corner
-            total. Kartu (kuning+merah) ekspektasi: {homeName} {corners.cards_expected.home},{" "}
-            {awayName} {corners.cards_expected.away}. Catatan jujur: ini model paling
-            kasar di kartu ini — cuma rata-rata {corners.sample_size.home_matches} laga
-            turnamen per tim (di-shrink ke rata-rata 101 laga), bukan model
-            berbasis kejadian di lapangan seperti market gol di atas.
-          </p>
-        </>
-      )}
+          </MarketSection>
+        )}
+      </div>
+
+      <details className="market-help">
+        <summary>Cara baca</summary>
+        <ul>
+          <li><b>Over/Under</b> — peluang total gol kedua tim tembus garis. Makin tinggi garis, makin kecil peluang.</li>
+          <li><b>BTTS</b> — kedua tim sama-sama cetak minimal 1 gol.</li>
+          <li><b>Double Chance</b> — menang di 2 dari 3 kemungkinan hasil (lebih aman, odds lebih kecil).</li>
+          <li><b>Handicap</b> — semua dari sisi {homeName}. Garis minus = harus menang lebih besar; garis plus = boleh kalah tipis dan tetap unggul.</li>
+          <li><b>Clean Sheet</b> — tim tidak kebobolan sama sekali.</li>
+          {corners && (
+            <li>
+              <b>Total Corner</b> — estimasi paling kasar (rata-rata {corners.sample_size.home_matches} laga/tim,
+              di-shrink ke rata-rata turnamen), bukan model per-kejadian seperti market gol.
+              Kartu: {homeName} {corners.cards_expected.home}, {awayName} {corners.cards_expected.away}.
+            </li>
+          )}
+        </ul>
+        <p className="market-help-foot">
+          Semua angka dihitung dari distribusi skor penuh model — presisi terhadap model, bukan jaminan hasil.
+        </p>
+      </details>
     </section>
   );
 }
