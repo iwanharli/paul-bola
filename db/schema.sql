@@ -1,6 +1,20 @@
 -- Schema for bola-forecasting: raw data collected from TheStatsAPI,
 -- structured for a Dixon-Coles / Poisson xG prediction model.
 
+-- Frozen pre-match predictions. A forecast must be locked BEFORE kickoff --
+-- if it kept recomputing after the match (once the result enters the training
+-- set), it would no longer be a prediction, just hindsight. export writes the
+-- latest pre-match prediction here each run; once kickoff passes (or the match
+-- is finished), it stops updating and serves the frozen value alongside the
+-- actual result.
+CREATE TABLE IF NOT EXISTS frozen_predictions (
+    match_key    TEXT PRIMARY KEY,      -- e.g. 'eng-arg-sf', 'final-spain-argentina'
+    kickoff_utc  TIMESTAMPTZ,
+    prediction   JSONB NOT NULL,
+    frozen_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    locked       BOOLEAN NOT NULL DEFAULT false
+);
+
 CREATE TABLE IF NOT EXISTS competitions (
     id              BIGINT PRIMARY KEY,       -- TheStatsAPI competition_id
     name            TEXT NOT NULL,

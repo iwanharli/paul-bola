@@ -28,6 +28,56 @@ from scorer_model import (player_tournament_xg, unavailable_players,
                           penalty_takers_tournament, team_penalty_rate, scorer_probs,
                           FIFA_TEAM)
 
+
+def freeze_prediction(match_key, kickoff_utc, is_finished, prediction):
+    """
+    Lock a forecast to its pre-match value. A prediction must not change once
+    the match has started -- otherwise it's hindsight, not a forecast, and any
+    "was the model right" claim is meaningless.
+
+    Before kickoff: store the freshly-computed prediction (keeps the latest
+    pre-match value). At/after kickoff or once finished: stop recomputing,
+    lock, and return the stored pre-match prediction. Returns the prediction
+    to actually serve.
+    """
+    now = datetime.datetime.now(datetime.timezone.utc)
+    started = is_finished or (kickoff_utc is not None and now >= kickoff_utc)
+
+    fconn = db.connect()
+    try:
+        cur = fconn.cursor()
+        cur.execute("SELECT prediction, locked FROM frozen_predictions WHERE match_key = %s", (match_key,))
+        existing = cur.fetchone()
+
+        if existing and existing[1]:  # already locked -> never recompute
+            return existing[0]
+
+        if started:
+            if existing:  # lock the last stored pre-match prediction
+                cur.execute("UPDATE frozen_predictions SET locked = true WHERE match_key = %s", (match_key,))
+                fconn.commit()
+                return existing[0]
+            # never captured a pre-match value (edge case) -- freeze now, best effort
+            cur.execute("""
+                INSERT INTO frozen_predictions (match_key, kickoff_utc, prediction, locked)
+                VALUES (%s, %s, %s, true)
+                ON CONFLICT (match_key) DO UPDATE SET prediction = EXCLUDED.prediction, locked = true
+            """, (match_key, kickoff_utc, json.dumps(prediction)))
+            fconn.commit()
+            return prediction
+
+        # pre-match: keep refreshing the stored value, not yet locked
+        cur.execute("""
+            INSERT INTO frozen_predictions (match_key, kickoff_utc, prediction, locked)
+            VALUES (%s, %s, %s, false)
+            ON CONFLICT (match_key) DO UPDATE
+                SET prediction = EXCLUDED.prediction, kickoff_utc = EXCLUDED.kickoff_utc, frozen_at = now()
+        """, (match_key, kickoff_utc, json.dumps(prediction)))
+        fconn.commit()
+        return prediction
+    finally:
+        fconn.close()
+
 OUT_PATH = "../frontend/public/predictions.json"
 # Vite copies public/ into dist/ only at BUILD time -- a deployed static site
 # serves dist/, which would otherwise go stale between rebuilds even though
@@ -1064,15 +1114,23 @@ def build():
                                      "modelPick": model_pick_name,
                                      "modelWasRight": model_pick_name == sf_result["winner"]}}
 
+    eng_arg_prediction = {**eng_arg, "market": market, "blend": blend,
+                          "scorers": {"home": scorers_for("England", eng_arg["xg"]["home"]),
+                                      "away": scorers_for("Argentina", eng_arg["xg"]["away"])}}
+    # Lock to the pre-match value once the semifinal has kicked off / finished
+    # (15:00 ET = 19:00 UTC on 2026-07-15).
+    eng_arg_prediction = freeze_prediction(
+        "eng-arg-sf",
+        datetime.datetime(2026, 7, 15, 19, 0, tzinfo=datetime.timezone.utc),
+        bool(sf_result), eng_arg_prediction)
+
     matches = [{
         "id": "eng-arg-sf",
         "round": "Semi-final", "date": "2026-07-15", "time": "15:00 ET",
         "venue": "Mercedes-Benz Stadium, Atlanta", "ground": "Atlanta",
         "home": "England", "away": "Argentina", "status": sf_status,
         **sf_extra,
-        "prediction": {**eng_arg, "market": market, "blend": blend,
-                       "scorers": {"home": scorers_for("England", eng_arg["xg"]["home"]),
-                                   "away": scorers_for("Argentina", eng_arg["xg"]["away"])}},
+        "prediction": eng_arg_prediction,
         "basis": {
             "strength": {"home": strength("England"), "away": strength("Argentina")},
             "form": {"home": team_form("England"), "away": team_form("Argentina")},
@@ -1098,6 +1156,19 @@ def build():
     for opp in final_opponents:
         pm = predict_match(attack, defense, team_idx, "Spain", opp,
                            home_keeper="Unai Simón Mendibil", away_keeper=OPPONENT_KEEPER[opp])
+        final_prediction = {**pm,
+                            "scorers": {"home": scorers_for("Spain", pm["xg"]["home"]),
+                                        "away": scorers_for(opp, pm["xg"]["away"])}}
+        final_result = match_result("Spain", opp)
+        # Freeze only the REAL final (matchup known via sf_result); scenarios
+        # are hypotheticals that get dropped, no point locking them. Kickoff
+        # 15:00 ET = 19:00 UTC on 2026-07-19 -- still future, so it keeps
+        # refreshing until then.
+        if sf_result:
+            final_prediction = freeze_prediction(
+                f"final-spain-{opp.lower()}",
+                datetime.datetime(2026, 7, 19, 19, 0, tzinfo=datetime.timezone.utc),
+                bool(final_result), final_prediction)
         matches.append({
             "id": f"final-spain-{opp.lower()}",
             "round": "Final" if sf_result else "Final (scenario)",
@@ -1105,9 +1176,7 @@ def build():
             "venue": "MetLife Stadium, New York/New Jersey",
             "ground": "New York/New Jersey (East Rutherford)",
             "home": "Spain", "away": opp, "status": "upcoming" if sf_result else "scenario",
-            "prediction": {**pm,
-                           "scorers": {"home": scorers_for("Spain", pm["xg"]["home"]),
-                                       "away": scorers_for(opp, pm["xg"]["away"])}},
+            "prediction": final_prediction,
             "basis": {
                 "strength": {"home": strength("Spain"), "away": strength(opp)},
                 "form": {"home": team_form("Spain"), "away": team_form(opp)},
