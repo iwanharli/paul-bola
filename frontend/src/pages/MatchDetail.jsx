@@ -87,14 +87,28 @@ export default function MatchDetail() {
                  label={`${m.away} menang di ET`} />
           <Meter value={p.knockout.shootout_given_still_level} tone="accent"
                  label="Masih imbang → adu penalti" />
-          {p.knockout.shootout_is_coinflip_assumption && (
+          {p.knockout.shootout_is_coinflip_assumption ? (
             <p className="tiny-note" style={{ marginTop: 10 }}>
               Adu penalti sendiri dihitung 50/50 (koin lempar) — tidak ada data
-              histori adu penalti di database untuk dijadikan model. Catatan:
-              kiper Argentina Emiliano Martínez punya rekam jejak adu penalti
-              yang kuat (final Piala Dunia 2022, 2x juara Copa America) yang
-              sengaja belum dimasukkan ke perhitungan ini.
+              histori adu penalti spesifik untuk kiper kedua tim ini.
             </p>
+          ) : (
+            <div style={{ marginTop: 14 }}>
+              <Meter value={p.knockout.shootout_win_home_pct} tone="home"
+                     label={`${m.home} menang adu penalti`} />
+              <Meter value={1 - p.knockout.shootout_win_home_pct} tone="away"
+                     label={`${m.away} menang adu penalti`} />
+              <p className="tiny-note" style={{ marginTop: 10 }}>
+                Berbasis save rate kiper dari 12 adu penalti nyata
+                (WC2022/Euro2024/Copa America 2024), di-shrink ke rata-rata
+                turnamen ({(p.knockout.shootout_detail.home_stop_rate * 100).toFixed(0)}%
+                {" "}{p.knockout.shootout_detail.home_keeper} dari {p.knockout.shootout_detail.home_n}{" "}
+                tendangan dihadapi vs {(p.knockout.shootout_detail.away_stop_rate * 100).toFixed(0)}%
+                {" "}{p.knockout.shootout_detail.away_keeper} dari {p.knockout.shootout_detail.away_n}{" "}
+                tendangan). Sample masih kecil — ini bukan angka pasti, cuma
+                sinyal berbasis data nyata dibanding tebakan buta.
+              </p>
+            </div>
           )}
         </section>
       )}

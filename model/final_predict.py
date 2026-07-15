@@ -45,12 +45,58 @@ BLEND_ALPHA = 0.5
 # ET yields well under 1/3 of a full match's goals, so we discount the rate.
 ET_MINUTES_FRACTION = 30 / 90
 ET_INTENSITY = 0.80          # ~20% fewer goals/min than regulation
-# Penalty shootout: with no shootout data in our DB, a coin flip is the honest
-# default. Argentina's Emiliano Martinez is an elite shootout keeper (won the
-# 2022 WC final, 2021 & 2024 Copa America shootouts) -- a real but unquantified
-# edge. Left at 0.50 to avoid injecting an unvalidated prior; raise toward
-# ~0.55 if you choose to trust that record.
-SHOOTOUT_ARG_WIN = 0.50
+# Penalty shootout: previously a flat 50/50 (no shootout data existed).
+# shootout_collect.py pulled kick-by-kick shootout history from StatsBomb
+# (WC2022/Euro2024/Copa2024, 104 kicks across 12 shootouts), so goalkeeper
+# stop rates can now inform this instead of guessing. Still a small sample
+# (n=13 for Martinez, the largest in the set) -- shrunk toward the global
+# stop rate (31.7% across all keepers) rather than trusted raw, same
+# treatment as the Elo shrinkage used for team attack/defense strength.
+SHOOTOUT_PRIOR_STRENGTH = 10  # pseudo-kicks of shrinkage toward the global rate
+
+
+def keeper_shootout_stop_rate(conn, keeper_name):
+    """Bayesian-shrunk save rate for a goalkeeper from shootout_history.
+    Returns (shrunk_rate, n_faced) -- always check n_faced before trusting."""
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT sum(faced), sum(stopped) FROM (
+            SELECT count(*) faced, count(*) FILTER (WHERE outcome != 'Goal') stopped
+            FROM shootout_history GROUP BY opposing_goalkeeper
+        ) t
+    """)
+    total_faced, total_stopped = cur.fetchone()
+    if not total_faced:
+        return 0.5, 0  # no shootout data collected at all
+    global_rate = float(total_stopped) / float(total_faced)
+
+    cur.execute("""
+        SELECT count(*), count(*) FILTER (WHERE outcome != 'Goal')
+        FROM shootout_history WHERE opposing_goalkeeper = %s
+    """, (keeper_name,))
+    faced, stopped = cur.fetchone()
+    faced, stopped = int(faced), int(stopped)
+    if not faced:
+        return global_rate, 0
+    shrunk = (stopped + global_rate * SHOOTOUT_PRIOR_STRENGTH) / (faced + SHOOTOUT_PRIOR_STRENGTH)
+    return float(shrunk), faced
+
+
+def shootout_win_prob(conn, home_keeper, away_keeper, edge_scale=0.5):
+    """
+    P(home wins the shootout), derived from the two keepers' shrunk stop
+    rates. edge_scale dampens the translation from "stop-rate gap" to
+    "shootout win probability" -- 0.5 means a 10-point stop-rate gap moves
+    the shootout odds by 5 points, a deliberately conservative mapping given
+    how small these samples are (not a fitted parameter, a documented
+    judgment call).
+    """
+    home_rate, home_n = keeper_shootout_stop_rate(conn, home_keeper)
+    away_rate, away_n = keeper_shootout_stop_rate(conn, away_keeper)
+    p_home = 0.5 + edge_scale * (home_rate - away_rate)
+    p_home = min(max(p_home, 0.35), 0.65)  # cap the swing -- n is too small for extreme confidence
+    return p_home, {"home_keeper": home_keeper, "home_stop_rate": round(home_rate, 3), "home_n": home_n,
+                    "away_keeper": away_keeper, "away_stop_rate": round(away_rate, 3), "away_n": away_n}
 
 
 def tau(x, y, lam, mu, rho):
@@ -169,9 +215,19 @@ def main():
                 et_e += p
             else:
                 et_d += p
-    # ET still level -> shootout
-    p_arg_adv = p_arg + p_draw * (et_a + et_d * SHOOTOUT_ARG_WIN)
-    p_eng_adv = p_eng + p_draw * (et_e + et_d * (1 - SHOOTOUT_ARG_WIN))
+    # ET still level -> shootout, informed by real (small-sample, shrunk)
+    # goalkeeper stop rates instead of a flat coin flip
+    shootout_conn = db.connect()
+    try:
+        shootout_arg_win, shootout_detail = shootout_win_prob(
+            shootout_conn, "Damián Emiliano Martínez", "Jordan Pickford")
+    finally:
+        shootout_conn.close()
+    print(f"\nShootout keeper comparison: {shootout_detail}")
+    print(f"Shootout win prob (Argentina): {shootout_arg_win:.1%}")
+
+    p_arg_adv = p_arg + p_draw * (et_a + et_d * shootout_arg_win)
+    p_eng_adv = p_eng + p_draw * (et_e + et_d * (1 - shootout_arg_win))
     print(f"\n(ET breakdown of the {p_draw:.0%} draw slice: ARG wins ET {et_a:.0%}, "
           f"ENG wins ET {et_e:.0%}, still level -> shootout {et_d:.0%})")
     print(f"\nAdvance to final (incl. ET/penalties):")
