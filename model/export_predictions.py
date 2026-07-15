@@ -891,8 +891,13 @@ def build():
     }]
 
     # --- final scenarios: Spain vs each possible finalist ---
+    # Both opponents' keepers are already in shootout_history (Unai Simon
+    # faced shots in the WC2022 Morocco QF shootout), so there's no reason
+    # these should default to a coin flip like the truly-undata'd matchups do.
+    OPPONENT_KEEPER = {"England": "Jordan Pickford", "Argentina": "Damián Emiliano Martínez"}
     for opp in ("England", "Argentina"):
-        pm = predict_match(attack, defense, team_idx, "Spain", opp)
+        pm = predict_match(attack, defense, team_idx, "Spain", opp,
+                           home_keeper="Unai Simón Mendibil", away_keeper=OPPONENT_KEEPER[opp])
         matches.append({
             "id": f"final-spain-{opp.lower()}",
             "round": "Final (scenario)", "date": "2026-07-19", "time": "15:00 ET",
