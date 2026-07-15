@@ -343,6 +343,45 @@ packet to `gpt-5.6-sol`. For regenerating many summaries in bulk, use
    `fifa_squads` + `player_crosswalk` and `fifa_shot_events` +
    `asa_player_game_xg`).
 
+## Multi-competition roadmap (extending beyond WC2026)
+
+The goal is for this to forecast *any* competition, not just the World Cup.
+One of four layers is done; three still hardcode WC2026.
+
+| Layer | Status | Blocker |
+|---|---|---|
+| Source-data plumbing (`collector/config.py`) | ✅ Done | API ids + source URLs are a per-competition registry entry, selected via `COMPETITION=…` |
+| **DB isolation** | ❌ Not done | No `competition` column on the tables — a second competition would **collide** with WC2026 rows in the same tables |
+| **Forecast layer** (`model/export_predictions.py`) | ❌ Not done | Matchups, venues, and the SF/final freezes are hardcoded to WC2026 |
+| **Frontend** | ❌ Not done | No competition switcher; everything polls a single `predictions.json` |
+
+**Recommended next target: a domestic club league (e.g. Premier League), not another
+international tournament.** Counter-intuitive but it's the better fit *and* the
+honest test of the "parameterized" claim:
+
+- **Far richer model data.** WC2026 is ~64 matches (why the model can't beat the
+  market). EPL is 380 matches/season + years of history → weekly retrains, larger
+  samples, better accuracy.
+- **Understat gives real shot-level xG** for the top-5 European leagues (which for
+  international football we have to assemble ourselves).
+- **Abundant market odds** (`soccer_epl` on the Odds API) → easy market blend.
+- **A totally different shape** (league vs group+knockout, club vs national). If the
+  architecture survives EPL, it's genuinely general, not just "swap the ID."
+- **Drops the FIFA API dependency** (FIFA-tournaments only); ESPN uses league codes
+  like `eng.1`, openfootball has `england.json`.
+
+Phased plan:
+
+1. **DB isolation (foundational, required first).** Add a `competition` column to
+   every table and make it part of the upsert conflict key. Without this, two
+   competitions overwrite each other. This is the real blocker; the rest follows cleanly.
+2. **Generalize the forecast layer.** Move matchups/venues/schedule out of hardcode
+   and drive them from fixtures data; make the freeze mechanism generic (freeze any
+   kickoff, not just `eng-arg-sf`).
+3. **Register EPL** in `config.py` and run collectors with `COMPETITION=epl`; run the
+   held-out validation (the model should be *more* competitive here thanks to the data volume).
+4. **Frontend competition switcher** (dropdown; per-competition `predictions-<comp>.json`).
+
 ## Running it
 
 ```bash
