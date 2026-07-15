@@ -22,7 +22,7 @@ load_dotenv()
 
 import db
 
-from config import ESPN_BASE as BASE
+from config import ESPN_BASE as BASE, COMPETITION
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
 
@@ -51,6 +51,7 @@ def collect_match(conn, event_id: str):
             if not athlete.get("id"):
                 continue
             db.upsert_composite(conn, "espn_match_rosters", {
+                "competition": COMPETITION,
                 "espn_event_id": eid,
                 "espn_athlete_id": int(athlete["id"]),
                 "team_name": team_name,
@@ -75,6 +76,7 @@ def collect_match(conn, event_id: str):
                 return None
 
         db.upsert_composite(conn, "espn_match_team_stats", {
+            "competition": COMPETITION,
             "espn_event_id": eid,
             "team_name": team_name,
             "possession_pct": num("possessionPct"),
@@ -93,6 +95,7 @@ def collect_match(conn, event_id: str):
     for o in data.get("odds", []):
         provider = o.get("provider", {}).get("name", "unknown")
         db.upsert_composite(conn, "espn_match_odds", {
+            "competition": COMPETITION,
             "espn_event_id": eid,
             "provider": provider,
             "details": o.get("details"),

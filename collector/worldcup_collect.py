@@ -17,7 +17,7 @@ load_dotenv()
 
 import db
 
-from config import OPENFOOTBALL_URL as SOURCE_URL
+from config import OPENFOOTBALL_URL as SOURCE_URL, COMPETITION
 
 
 def _score(match: dict, key: str, idx: int):
@@ -36,6 +36,7 @@ def collect():
     try:
         for i, m in enumerate(matches, start=1):
             db.upsert_composite(conn, "worldcup_matches", {
+                "competition": COMPETITION,
                 "tournament": payload.get("name", "World Cup 2026"),
                 "match_num": m.get("num", i),
                 "round": m.get("round"),

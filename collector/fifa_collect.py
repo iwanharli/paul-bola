@@ -25,7 +25,7 @@ load_dotenv()
 
 import db
 
-from config import FIFA_COMPETITION_ID as COMPETITION_ID, FIFA_SEASON_ID as SEASON_ID
+from config import FIFA_COMPETITION_ID as COMPETITION_ID, FIFA_SEASON_ID as SEASON_ID, COMPETITION
 
 BASE = "https://api.fifa.com/api/v3"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -81,6 +81,7 @@ def collect_shots(team_filter: str | None):
                 desc = (e.get("EventDescription") or [{}])[0].get("Description", "")
                 is_goal = e.get("Type") == 0
                 db.upsert(conn, "fifa_shot_events", {
+                    "competition": COMPETITION,
                     "event_id": int(e["EventId"]),
                     "match_id": match_id,
                     "team_id": int(e["IdTeam"]) if e.get("IdTeam") else None,

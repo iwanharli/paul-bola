@@ -23,6 +23,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import db
+from config import COMPETITION
 
 BASE = "https://api.open-meteo.com/v1/forecast"
 
@@ -41,6 +42,7 @@ def collect(ground: str, lat: float, lon: float, date: str, kickoff_hour: int, t
     conn = db.connect()
     try:
         db.upsert_composite(conn, "match_weather", {
+            "competition": COMPETITION,
             "ground": ground,
             "match_date": date,
             "kickoff_hour_local": kickoff_hour,
@@ -51,7 +53,7 @@ def collect(ground: str, lat: float, lon: float, date: str, kickoff_hour: int, t
             "precipitation_mm": hourly["precipitation"][idx],
             "wind_speed_kmh": hourly["wind_speed_10m"][idx],
             "raw": data,
-        }, ["ground", "match_date"])
+        }, ["competition", "ground", "match_date"])
         conn.commit()
         db.log_collection(conn, "open-meteo", "weather", f"{ground}/{date}", "success",
                            f"{hourly['temperature_2m'][idx]}C, {hourly['relative_humidity_2m'][idx]}% humidity")

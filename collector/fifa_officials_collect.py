@@ -16,7 +16,7 @@ load_dotenv()
 
 import db
 
-from config import FIFA_COMPETITION_ID as COMPETITION_ID, FIFA_SEASON_ID as SEASON_ID
+from config import FIFA_COMPETITION_ID as COMPETITION_ID, FIFA_SEASON_ID as SEASON_ID, COMPETITION
 
 BASE = "https://api.fifa.com/api/v3"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -43,6 +43,7 @@ def store_match_index(conn, match):
     away = match.get("Away") or {}
     match_date = (match.get("Date") or match.get("LocalDate") or "")[:10] or None
     db.upsert(conn, "fifa_match_index", {
+        "competition": COMPETITION,
         "fifa_match_id": int(match["IdMatch"]),
         "id_stage": match.get("IdStage"),
         "match_date": match_date,
@@ -68,6 +69,7 @@ def collect(conn=None):
             match_id = int(m["IdMatch"])
             for o in m.get("Officials", []):
                 db.upsert_composite(conn, "fifa_match_officials", {
+                    "competition": COMPETITION,
                     "fifa_match_id": match_id,
                     "official_id": int(o["OfficialId"]),
                     "name": _localized(o.get("Name")),

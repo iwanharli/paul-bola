@@ -15,6 +15,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import db
+from config import COMPETITION
 
 TEAM_ALIASES = {
     "United States": "USA",
@@ -77,6 +78,7 @@ def _projected_lineups(conn):
         for row in selected:
             confidence = row["starts"] / row["appearances"] if row["appearances"] else 0
             db.upsert_composite(conn, "projected_team_lineups", {
+                "competition": COMPETITION,
                 "team_name": team,
                 "player_name": row["player_name"],
                 "shirt_number": row["shirt_number"],
@@ -86,7 +88,7 @@ def _projected_lineups(conn):
                 "confidence": round(float(confidence), 3),
                 "source": "derived:espn_match_rosters",
                 "raw": row,
-            }, ["team_name", "player_name"])
+            }, ["competition", "team_name", "player_name"])
 
     # If a team still has no projection, use a conservative FIFA squad fallback
     # sorted by position and shirt number. It is squad coverage, not official XI.
@@ -131,6 +133,7 @@ def _projected_lineups(conn):
     for team, rows in squad_by_name.items():
         for player_name, shirt_number, position, raw in rows:
             db.upsert_composite(conn, "projected_team_lineups", {
+                "competition": COMPETITION,
                 "team_name": team,
                 "player_name": player_name.title(),
                 "shirt_number": shirt_number,
@@ -140,7 +143,7 @@ def _projected_lineups(conn):
                 "confidence": 0,
                 "source": "fallback:fifa_squads",
                 "raw": raw,
-            }, ["team_name", "player_name"])
+            }, ["competition", "team_name", "player_name"])
 
 
 def _availability_coverage(conn):
@@ -163,13 +166,14 @@ def _availability_coverage(conn):
         merged[team]["source_rows"].append({"team": team, "player_count": int(player_count or 0), "special_count": int(special_count or 0)})
 
     for team, row in merged.items():
-        db.upsert(conn, "team_availability_coverage", {
+        db.upsert_composite(conn, "team_availability_coverage", {
+            "competition": COMPETITION,
             "team_name": team,
             "player_count": row["player_count"],
             "special_status_count": row["special_status_count"],
             "source": "derived:fifa_squads.SpecialStatus",
             "raw": row,
-        }, "team_name")
+        }, ["competition", "team_name"])
 
 
 def _attack_summary(conn):
@@ -188,13 +192,14 @@ def _attack_summary(conn):
 
     for team, player, shots, goals in rows:
         db.upsert_composite(conn, "team_player_attack_summary", {
+            "competition": COMPETITION,
             "team_name": canonical_team(team),
             "player_name": player.title(),
             "goals": int(goals or 0),
             "shots": int(shots or 0),
             "source": "derived:fifa_shot_events",
             "raw": {"source_team": team},
-        }, ["team_name", "player_name"])
+        }, ["competition", "team_name", "player_name"])
 
 
 def collect(conn=None):

@@ -21,7 +21,7 @@ load_dotenv()
 import db
 from source_utils import american_price, pair_matches, parse_date, team_names_match
 
-from config import ODDS_API_SPORT_KEYS
+from config import ODDS_API_SPORT_KEYS, COMPETITION
 
 BASE = "https://api.the-odds-api.com/v4"
 DEFAULT_SPORT_KEYS = ODDS_API_SPORT_KEYS
@@ -91,6 +91,7 @@ def _write_event(conn, match, event, sport_key):
                 """, ("the-odds-api", team1, team2, event_date, bookmaker_name, "90min_moneyline"))
 
             db.upsert(conn, "match_odds_snapshot", {
+                "competition": COMPETITION,
                 "team1": team1,
                 "team2": team2,
                 "match_date": event_date,

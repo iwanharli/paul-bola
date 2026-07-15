@@ -23,6 +23,7 @@ load_dotenv()
 
 import db
 import espn_collect
+from config import COMPETITION
 
 
 def norm(name):
@@ -91,16 +92,18 @@ def collect():
 
         print(f"Matched {matched}/{len(referee_matches)} referee-match rows to card data")
 
-        cur.execute("TRUNCATE referee_tendency RESTART IDENTITY")
+        # Rebuild only THIS competition's rows -- a blanket TRUNCATE would wipe
+        # every other competition's referee tendencies too.
+        cur.execute("DELETE FROM referee_tendency WHERE competition = %s", (COMPETITION,))
         for name, samples in per_ref.items():
             n = len(samples)
             avg_yellow = sum(s[0] for s in samples) / n
             avg_red = sum(s[1] for s in samples) / n
             cur.execute("""
                 INSERT INTO referee_tendency
-                    (referee_name, matches_sampled, avg_yellow_per_match, avg_red_per_match, notes, source)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (name, n, round(avg_yellow, 2), round(avg_red, 2),
+                    (competition, referee_name, matches_sampled, avg_yellow_per_match, avg_red_per_match, notes, source)
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+            """, (COMPETITION, name, n, round(avg_yellow, 2), round(avg_red, 2),
                   f"Computed from {n} matches this tournament (FIFA officials x ESPN cards join).",
                   "derived:fifa_match_officials+espn_match_team_stats"))
         conn.commit()

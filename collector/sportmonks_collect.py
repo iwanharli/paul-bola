@@ -18,6 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import db
+from config import COMPETITION
 
 BASE = os.environ.get("SPORTMONKS_BASE", "https://api.sportmonks.com/v3/football")
 INCLUDES = "participants;league;season;round;venue;state;lineups;metadata;referees;odds;statistics"
@@ -74,6 +75,7 @@ def collect(conn=None):
             for fixture in fixtures:
                 home, away = _names(fixture)
                 db.upsert_composite(conn, "provider_match_context", {
+                    "competition": COMPETITION,
                     "provider": "sportmonks",
                     "endpoint": "fixtures",
                     "external_id": str(fixture.get("id")),

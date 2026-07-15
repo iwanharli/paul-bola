@@ -19,6 +19,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import db
+from config import COMPETITION
 
 BASE = "https://v3.football.api-sports.io"
 
@@ -38,6 +39,7 @@ def _get(path, **params):
 
 def _upsert_context(conn, endpoint, external_id, raw, match_date=None, home=None, away=None):
     db.upsert_composite(conn, "provider_match_context", {
+        "competition": COMPETITION,
         "provider": "api-football",
         "endpoint": endpoint,
         "external_id": str(external_id),
