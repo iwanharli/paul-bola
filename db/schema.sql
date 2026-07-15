@@ -576,6 +576,79 @@ CREATE TABLE IF NOT EXISTS collection_log (
     run_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- =====================================================================
+-- MULTI-COMPETITION ISOLATION (Phase 1)
+--
+-- Every competition-scoped table gets a `competition` slug column so more
+-- than one competition (wc2026, epl, ...) can live in the same database
+-- without colliding or bleeding into each other's forecasts. Done as
+-- idempotent ADD COLUMN IF NOT EXISTS migrations (same pattern as the
+-- match_odds_snapshot ALTERs above) so applying this to the existing WC2026
+-- database backfills every current row to 'wc2026' and changes nothing about
+-- how the tournament behaves today. Collectors stamp config.COMPETITION on
+-- each row they write.
+--
+-- Deliberately NOT scoped (shared/pooled reference data): statsbomb_shots and
+-- shootout_history (cross-tournament training pools), team_elo_ratings,
+-- wikidata_entities, player_crosswalk, teams, competitions, h2h_history,
+-- collection_log. Also left unscoped for now and flagged for Phase 3:
+--   * matches / match_stats -- fed only by the revoked TheStatsAPI and by
+--     StatsBomb open-data past tournaments (a training pool), not the live
+--     WC2026 pipeline; stamping them 'wc2026' would mislabel pooled matches.
+--   * understat_matches -- currently holds club-league xG used as player
+--     FORM reference, not WC2026 fixtures; it becomes genuinely per-competition
+--     only when a club league (EPL) is wired up, so its scoping is decided then.
+-- =====================================================================
+
+-- Tables whose existing primary key is globally unique per source (FIFA/ESPN/
+-- football-data ids, or manually-unique keys) -- collision is not possible, so
+-- we only add the column for query scoping (filter WHERE competition = ...),
+-- keeping their primary key untouched.
+ALTER TABLE fifa_shot_events         ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE fifa_squads              ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE fifa_match_officials     ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE fifa_match_index         ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE fifa_match_lineups       ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE worldcup_matches         ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE espn_match_rosters       ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE espn_match_team_stats    ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE espn_match_odds          ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE referee_tendency         ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE player_availability      ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE match_odds_snapshot      ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE provider_match_context   ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+-- NOTE: football_data_matches is intentionally excluded -- it already has a
+-- `competition` column holding football-data.org's own competition CODE (e.g.
+-- 'WC'), which already discriminates competitions there; reusing the name for
+-- our slug would conflict. It's a rarely-used fallback source, revisit later.
+ALTER TABLE frozen_predictions       ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+
+CREATE INDEX IF NOT EXISTS idx_worldcup_comp           ON worldcup_matches(competition);
+CREATE INDEX IF NOT EXISTS idx_fifa_shot_events_comp   ON fifa_shot_events(competition);
+
+-- Tables whose natural key is competition-RELATIVE (team_name / ground) --
+-- the same team name or venue can recur across competitions, so competition
+-- must become part of the key. Rebuild the constraint idempotently: add the
+-- column, drop the old key, re-add it with competition prepended. On re-run
+-- the DROP ... IF EXISTS + ADD recreates the identical constraint, so this is
+-- safe to apply repeatedly.
+ALTER TABLE projected_team_lineups     ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE projected_team_lineups     DROP CONSTRAINT IF EXISTS projected_team_lineups_pkey;
+ALTER TABLE projected_team_lineups     ADD  PRIMARY KEY (competition, team_name, player_name);
+
+ALTER TABLE team_availability_coverage ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE team_availability_coverage DROP CONSTRAINT IF EXISTS team_availability_coverage_pkey;
+ALTER TABLE team_availability_coverage ADD  PRIMARY KEY (competition, team_name);
+
+ALTER TABLE team_player_attack_summary ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE team_player_attack_summary DROP CONSTRAINT IF EXISTS team_player_attack_summary_pkey;
+ALTER TABLE team_player_attack_summary ADD  PRIMARY KEY (competition, team_name, player_name);
+
+ALTER TABLE match_weather              ADD COLUMN IF NOT EXISTS competition TEXT NOT NULL DEFAULT 'wc2026';
+ALTER TABLE match_weather              DROP CONSTRAINT IF EXISTS match_weather_ground_match_date_key;
+ALTER TABLE match_weather              DROP CONSTRAINT IF EXISTS match_weather_competition_ground_match_date_key;
+ALTER TABLE match_weather              ADD  CONSTRAINT match_weather_competition_ground_match_date_key UNIQUE (competition, ground, match_date);
+
 -- Views placed last (not near the tables they were originally documented
 -- next to) because CREATE VIEW is evaluated at each execution in file order --
 -- a view referencing a table defined LATER in this script fails on a fresh

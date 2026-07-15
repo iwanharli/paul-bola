@@ -47,6 +47,11 @@ if ACTIVE not in COMPETITIONS:
 CONFIG = COMPETITIONS[ACTIVE]
 
 # --- convenience accessors (import these) ---
+# The active competition slug (e.g. "wc2026"). Every competition-scoped table
+# stores this in a `competition` column so multiple competitions can share the
+# same database without their rows colliding or bleeding into each other's
+# forecasts. Collectors stamp it on each row they write.
+COMPETITION = ACTIVE
 NAME = CONFIG["name"]
 FIFA_COMPETITION_ID = CONFIG["fifa_competition_id"]
 FIFA_SEASON_ID = CONFIG["fifa_season_id"]

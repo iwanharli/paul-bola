@@ -12,6 +12,7 @@ load_dotenv()
 
 import db
 from fifa_officials_collect import BASE, COMPETITION_ID, HEADERS, SEASON_ID, get_calendar_matches, store_match_index
+from config import COMPETITION
 
 
 def _localized(value):
@@ -85,6 +86,7 @@ def collect_match_lineups(conn, match):
             if not player_id or not player_name:
                 continue
             db.upsert_composite(conn, "fifa_match_lineups", {
+                "competition": COMPETITION,
                 "fifa_match_id": match_id,
                 "fifa_team_id": int(team_id) if team_id else None,
                 "team_name": team_name,

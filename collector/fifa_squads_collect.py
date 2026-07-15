@@ -17,7 +17,7 @@ load_dotenv()
 
 import db
 
-from config import FIFA_COMPETITION_ID as COMPETITION_ID, FIFA_SEASON_ID as SEASON_ID
+from config import FIFA_COMPETITION_ID as COMPETITION_ID, FIFA_SEASON_ID as SEASON_ID, COMPETITION
 
 BASE = "https://api.fifa.com/api/v3"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
@@ -58,6 +58,7 @@ def collect_squad(conn, team_name: str):
         players = team.get("Players", [])
         for p in players:
             db.upsert_composite(conn, "fifa_squads", {
+                "competition": COMPETITION,
                 "fifa_player_id": int(p["IdPlayer"]),
                 "fifa_team_id": team_id,
                 "player_name": p["PlayerName"][0]["Description"],
