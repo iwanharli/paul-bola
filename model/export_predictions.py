@@ -105,6 +105,32 @@ def top_scorelines(mat, home_is_a, n=6):
     return out
 
 
+def market_probs(mat):
+    """
+    Common betting markets derived from the full score matrix (not just the
+    top-N scorelines), so these are exact given the model -- not approximated
+    from a truncated list.
+    """
+    n = mat.shape[0]
+    total_goals_dist = {}  # total goals -> prob
+    btts_yes = 0.0
+    for x in range(n):
+        for y in range(n):
+            p = mat[x, y]
+            total_goals_dist[x + y] = total_goals_dist.get(x + y, 0.0) + p
+            if x > 0 and y > 0:
+                btts_yes += p
+
+    def over_under(line):
+        under = sum(p for g, p in total_goals_dist.items() if g <= line)
+        return {"line": line, "over": round(1 - under, 4), "under": round(under, 4)}
+
+    return {
+        "over_under": [over_under(1.5), over_under(2.5), over_under(3.5)],
+        "btts": {"yes": round(float(btts_yes), 4), "no": round(1 - float(btts_yes), 4)},
+    }
+
+
 def predict_match(attack, defense, team_idx, home, away, home_keeper=None, away_keeper=None):
     """Returns prediction oriented to home/away (matrix internally a=away? we
     call score_matrix(home, away) so a=home). Pass home_keeper/away_keeper
@@ -128,6 +154,7 @@ def predict_match(attack, defense, team_idx, home, away, home_keeper=None, away_
         "advance": {"home": round(adv_home, 4), "away": round(adv_away, 4)},
         "knockout": knockout,
         "scorelines": top_scorelines(mat, home_is_a=True),
+        "markets": market_probs(mat),
     }
 
 
