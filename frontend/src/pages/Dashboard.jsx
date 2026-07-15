@@ -9,7 +9,10 @@ export default function Dashboard() {
   if (error) return <div className="state">Gagal memuat dashboard.</div>;
   if (!data) return <FullPageLoader text="Memuat dashboard" />;
 
-  const nextMatch = data.matches?.[0];
+  // The next FORECAST is the next unplayed match, not a finished one -- skip
+  // matches that already have a result (e.g. the just-finished semifinal).
+  const matches = data.matches || [];
+  const nextMatch = matches.find((m) => m.status !== "finished") || matches[0];
   const teams = data.tournament?.teams || [];
   const players = buildPlayers(data);
   const qualityRows = (data.matches || []).map(matchQuality);
