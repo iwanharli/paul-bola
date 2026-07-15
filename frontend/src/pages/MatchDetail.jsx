@@ -162,6 +162,8 @@ export default function MatchDetail() {
         </section>
       </div>
 
+      {p.markets && <MarketsCard markets={p.markets} />}
+
       <section className="panel">
         <h2>Ringkasan form</h2>
         <div className="form-strip">
@@ -595,6 +597,38 @@ function ScorerCol({ title, list }) {
         </div>
       ))}
     </div>
+  );
+}
+
+function MarketsCard({ markets }) {
+  return (
+    <section className="panel panel-market">
+      <h2>Pasar taruhan</h2>
+      <p className="panel-sub">
+        Dihitung langsung dari distribusi skor penuh model (bukan cuma 6 skor
+        teratas), jadi angkanya presisi terhadap model — bukan estimasi kasar.
+      </p>
+
+      <div className="market-grid">
+        {markets.over_under.map((ou) => (
+          <div className="stat-tile market" key={ou.line}>
+            <span>Over {ou.line}</span>
+            <strong>{pct0(ou.over)}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="btts-row">
+        <div className="btts-chip">
+          <strong>{pct0(markets.btts.yes)}</strong>
+          <span>BTTS — Ya</span>
+        </div>
+        <div className="btts-chip">
+          <strong>{pct0(markets.btts.no)}</strong>
+          <span>BTTS — Tidak</span>
+        </div>
+      </div>
+    </section>
   );
 }
 
