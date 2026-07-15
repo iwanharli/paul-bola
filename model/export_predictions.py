@@ -954,7 +954,14 @@ def build():
             "matches": matches,
         }
 
-    def historical_evaluation():
+    def historical_evaluation(frozen_overrides=None):
+        # frozen_overrides: {frozenset({home,away}): {"home": home_team,
+        # "result90": {...}}}. For matches we actually made a locked pre-match
+        # FORECAST for (e.g. the semifinal), the audit should judge THAT
+        # forecast -- not a separate group-stage-only backtest model that would
+        # give a different, contradictory verdict for the same match. Keeps the
+        # history page consistent with the forecast card.
+        frozen_overrides = frozen_overrides or {}
         df = raw_df.copy()
         df["xg1"] = BLEND_ALPHA * df["xg1"] + (1 - BLEND_ALPHA) * df["g1"]
         df["xg2"] = BLEND_ALPHA * df["xg2"] + (1 - BLEND_ALPHA) * df["g2"]
@@ -1009,7 +1016,16 @@ def build():
         for r in test.itertuples():
             if r.team1 not in team_idx_eval or r.team2 not in team_idx_eval:
                 continue
-            ph, pdw, pa = predict_result_probs(eval_attack, eval_defense, team_idx_eval, r.team1, r.team2)
+            override = frozen_overrides.get(frozenset([r.team1, r.team2]))
+            if override:
+                # use the locked pre-match forecast, oriented to r.team1/team2
+                fr = override["result90"]
+                if override["home"] == r.team1:
+                    ph, pdw, pa = fr["home"], fr["draw"], fr["away"]
+                else:
+                    ph, pdw, pa = fr["away"], fr["draw"], fr["home"]
+            else:
+                ph, pdw, pa = predict_result_probs(eval_attack, eval_defense, team_idx_eval, r.team1, r.team2)
             probs = {"home": ph, "draw": pdw, "away": pa}
             actual = result_label(r.g1, r.g2)
             predicted = max(probs.items(), key=lambda item: item[1])[0]
@@ -1194,6 +1210,14 @@ def build():
             "intelligence": enrich("Spain", opp, "New York/New Jersey (East Rutherford)", "2026-07-19"),
         })
 
+    # Matches we made a locked pre-match forecast for -> override the held-out
+    # backtest so the history verdict matches the forecast card for that match.
+    frozen_overrides = {
+        frozenset([m["home"], m["away"]]): {"home": m["home"],
+                                            "result90": m["prediction"]["result90"]}
+        for m in matches if m.get("status") == "finished"
+    }
+
     out = {
         "generated_at": datetime.datetime.now().isoformat(timespec="seconds"),
         "model": {
@@ -1207,7 +1231,7 @@ def build():
         "dataFreshness": freshness(),
         "sourceDetails": source_details(),
         "history": {
-            "evaluation": historical_evaluation(),
+            "evaluation": historical_evaluation(frozen_overrides),
         },
         "bracket": bracket(),
         "matches": matches,
