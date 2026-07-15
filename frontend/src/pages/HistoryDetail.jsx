@@ -83,6 +83,34 @@ export default function HistoryDetail() {
         </section>
       )}
 
+      {match.betting && match.betting.markets?.length > 0 && (
+        <section className="panel panel-market">
+          <div className="panel-head">
+            <div>
+              <h2>Audit taruhan</h2>
+              <p className="panel-sub">
+                Tebakan pasar taruhan model (dari probabilitas pra-laga yang
+                dikunci) vs hasil aktual. Bukan hindsight.
+              </p>
+            </div>
+            <Pill tone={match.betting.hits >= match.betting.total / 2 ? "live" : "danger"}>
+              {match.betting.hits}/{match.betting.total} tepat
+            </Pill>
+          </div>
+          <div className="betting-audit">
+            {match.betting.markets.map((mk, i) => (
+              <div className={`betting-row ${mk.hit ? "hit" : "miss"}`} key={i}>
+                <span className="betting-icon">{mk.hit ? "✓" : "✗"}</span>
+                <div className="betting-info">
+                  <strong>{mk.market}</strong>
+                  <span>Pick: {mk.pick} ({pct0(mk.prob)}) · Hasil: {mk.outcome}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section className="panel primary-panel">
         <div className="panel-head">
           <div>
