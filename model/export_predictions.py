@@ -68,7 +68,31 @@ def resolve_advance(mat, lam, mu):
                 et_d += p
     adv_a = p_a + p_d * (et_a + et_d * SHOOTOUT_ARG_WIN)
     adv_b = p_b + p_d * (et_b + et_d * (1 - SHOOTOUT_ARG_WIN))
-    return p_a, p_d, p_b, adv_a, adv_b
+
+    # Breakdown of the p_d (90-min draw) slice, so the frontend can show
+    # "if it's still level after 90, here's how ET and penalties split it"
+    # instead of only the final blended advance number. Penalty shootout
+    # itself is intentionally left at SHOOTOUT_ARG_WIN=0.50 (a coin flip) --
+    # there's no shootout-outcome data in the DB to fit a real rate from.
+    # Emiliano Martinez's real shootout pedigree (2022 WC final, 2x Copa
+    # America) is a known, deliberately-unmodeled edge for Argentina.
+    # NOTE: SHOOTOUT_ARG_WIN is applied as team-A's (home's) shootout win
+    # share here regardless of whether team A is actually Argentina -- only
+    # harmless because the value is a symmetric 0.5 coin flip; the name is a
+    # holdover from when this was hardcoded for the Argentina/England match
+    # specifically.
+    # et_a/et_b/et_d already sum to ~1.0 -- they're the conditional
+    # distribution over the extra-time sub-game (computed from its own
+    # lam_et/mu_et Poisson), not yet scaled by p_d. Don't divide by p_d again.
+    knockout_breakdown = {
+        "draw_after_90": round(p_d, 4),
+        "et_win_home_given_draw": round(et_a, 4),
+        "et_win_away_given_draw": round(et_b, 4),
+        "shootout_given_still_level": round(et_d, 4),
+        "shootout_win_home_pct": SHOOTOUT_ARG_WIN,
+        "shootout_is_coinflip_assumption": True,
+    }
+    return p_a, p_d, p_b, adv_a, adv_b, knockout_breakdown
 
 
 def top_scorelines(mat, home_is_a, n=6):
@@ -85,11 +109,12 @@ def predict_match(attack, defense, team_idx, home, away):
     """Returns prediction oriented to home/away (matrix internally a=away? we
     call score_matrix(home, away) so a=home)."""
     mat, lam_home, mu_away = score_matrix(attack, defense, team_idx, home, away)
-    p_home, p_draw, p_away, adv_home, adv_away = resolve_advance(mat, lam_home, mu_away)
+    p_home, p_draw, p_away, adv_home, adv_away, knockout = resolve_advance(mat, lam_home, mu_away)
     return {
         "xg": {"home": round(lam_home, 2), "away": round(mu_away, 2)},
         "result90": {"home": round(p_home, 4), "draw": round(p_draw, 4), "away": round(p_away, 4)},
         "advance": {"home": round(adv_home, 4), "away": round(adv_away, 4)},
+        "knockout": knockout,
         "scorelines": top_scorelines(mat, home_is_a=True),
     }
 

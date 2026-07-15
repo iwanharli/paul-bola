@@ -74,6 +74,31 @@ export default function MatchDetail() {
         )}
       </section>
 
+      {p.knockout && (
+        <section className="panel">
+          <h2>Kalau seri: extra time &amp; adu penalti</h2>
+          <p className="panel-sub">
+            Dari {pct0(p.knockout.draw_after_90)} peluang masih seri di menit 90,
+            begini pecahannya:
+          </p>
+          <Meter value={p.knockout.et_win_home_given_draw} tone="home"
+                 label={`${m.home} menang di ET`} />
+          <Meter value={p.knockout.et_win_away_given_draw} tone="away"
+                 label={`${m.away} menang di ET`} />
+          <Meter value={p.knockout.shootout_given_still_level} tone="accent"
+                 label="Masih imbang → adu penalti" />
+          {p.knockout.shootout_is_coinflip_assumption && (
+            <p className="tiny-note" style={{ marginTop: 10 }}>
+              Adu penalti sendiri dihitung 50/50 (koin lempar) — tidak ada data
+              histori adu penalti di database untuk dijadikan model. Catatan:
+              kiper Argentina Emiliano Martínez punya rekam jejak adu penalti
+              yang kuat (final Piala Dunia 2022, 2x juara Copa America) yang
+              sengaja belum dimasukkan ke perhitungan ini.
+            </p>
+          )}
+        </section>
+      )}
+
       {p.market && (
         <section className="panel">
           <h2>Model vs market</h2>
