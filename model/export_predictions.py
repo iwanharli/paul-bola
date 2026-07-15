@@ -1106,13 +1106,6 @@ def build():
 
     sf_result = match_result("England", "Argentina")
     sf_status = "finished" if sf_result else "upcoming"
-    sf_extra = {}
-    if sf_result:
-        model_pick = max(eng_arg["result90"].items(), key=lambda kv: kv[1])[0]
-        model_pick_name = {"home": "England", "draw": "Draw", "away": "Argentina"}[model_pick]
-        sf_extra = {"actualResult": {**sf_result,
-                                     "modelPick": model_pick_name,
-                                     "modelWasRight": model_pick_name == sf_result["winner"]}}
 
     eng_arg_prediction = {**eng_arg, "market": market, "blend": blend,
                           "scorers": {"home": scorers_for("England", eng_arg["xg"]["home"]),
@@ -1123,6 +1116,18 @@ def build():
         "eng-arg-sf",
         datetime.datetime(2026, 7, 15, 19, 0, tzinfo=datetime.timezone.utc),
         bool(sf_result), eng_arg_prediction)
+
+    # The "was the model right" verdict MUST read the FROZEN pre-match
+    # prediction, not the freshly-recomputed (and now training-contaminated)
+    # one -- otherwise the verdict would flip to whatever hindsight says.
+    sf_extra = {}
+    if sf_result:
+        frozen_r90 = eng_arg_prediction["result90"]
+        model_pick = max(frozen_r90.items(), key=lambda kv: kv[1])[0]
+        model_pick_name = {"home": "England", "draw": "Draw", "away": "Argentina"}[model_pick]
+        sf_extra = {"actualResult": {**sf_result,
+                                     "modelPick": model_pick_name,
+                                     "modelWasRight": model_pick_name == sf_result["winner"]}}
 
     matches = [{
         "id": "eng-arg-sf",
