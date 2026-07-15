@@ -267,31 +267,6 @@ CREATE TABLE IF NOT EXISTS player_crosswalk (
     created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
--- Reconciliation view: FIFA's shot-event count doesn't match ESPN's official
--- totalShots on cross-check (e.g. Argentina vs Switzerland: FIFA counted 25,
--- ESPN reported 22) -- likely a differing definition of "shot" (blocked
--- attempts included/excluded). Treat ESPN as ground truth for shot VOLUME;
--- fifa_shot_events remains useful only for shot LOCATION (xG modeling from
--- coordinates), not for total counts.
-CREATE OR REPLACE VIEW v_match_shot_counts_reliable AS
-SELECT espn_event_id, team_name, total_shots AS reliable_total_shots
-FROM espn_match_team_stats;
-
--- Reconciliation view: fifa_shot_events.is_goal undercounts goals on ~1/3 of
--- matches (the FIFA public timeline feed silently drops some goal events --
--- confirmed by cross-checking against worldcup_matches, whose goals1/goals2
--- scorer lists matched official scores on all 12 checked matches). Treat
--- worldcup_matches as the ground truth for goal counts/timing/scorers; use
--- fifa_shot_events only for shot locations (attempt coordinates) feeding xG.
-CREATE OR REPLACE VIEW v_match_goal_counts_reliable AS
-SELECT
-    team1, team2, match_num,
-    COALESCE(score_et_team1, score_ft_team1) AS team1_goals,
-    COALESCE(score_et_team2, score_ft_team2) AS team2_goals,
-    jsonb_array_length(goals1) AS team1_scorer_count,
-    jsonb_array_length(goals2) AS team2_scorer_count
-FROM worldcup_matches;
-
 -- StatsBomb open-data shots from recent international tournaments (WC2022,
 -- Euro2024, Copa America 2024), used purely to enlarge the training set for
 -- our coordinate-based xG model. Shot quality (goal probability given
@@ -564,3 +539,34 @@ CREATE TABLE IF NOT EXISTS collection_log (
     detail          TEXT,
     run_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Views placed last (not near the tables they were originally documented
+-- next to) because CREATE VIEW is evaluated at each execution in file order --
+-- a view referencing a table defined LATER in this script fails on a fresh
+-- database (only worked on existing databases where tables were added
+-- incrementally over time, never applied to an empty DB in one shot).
+
+-- Reconciliation view: FIFA's shot-event count doesn't match ESPN's official
+-- totalShots on cross-check (e.g. Argentina vs Switzerland: FIFA counted 25,
+-- ESPN reported 22) -- likely a differing definition of "shot" (blocked
+-- attempts included/excluded). Treat ESPN as ground truth for shot VOLUME;
+-- fifa_shot_events remains useful only for shot LOCATION (xG modeling from
+-- coordinates), not for total counts.
+CREATE OR REPLACE VIEW v_match_shot_counts_reliable AS
+SELECT espn_event_id, team_name, total_shots AS reliable_total_shots
+FROM espn_match_team_stats;
+
+-- Reconciliation view: fifa_shot_events.is_goal undercounts goals on ~1/3 of
+-- matches (the FIFA public timeline feed silently drops some goal events --
+-- confirmed by cross-checking against worldcup_matches, whose goals1/goals2
+-- scorer lists matched official scores on all 12 checked matches). Treat
+-- worldcup_matches as the ground truth for goal counts/timing/scorers; use
+-- fifa_shot_events only for shot locations (attempt coordinates) feeding xG.
+CREATE OR REPLACE VIEW v_match_goal_counts_reliable AS
+SELECT
+    team1, team2, match_num,
+    COALESCE(score_et_team1, score_ft_team1) AS team1_goals,
+    COALESCE(score_et_team2, score_ft_team2) AS team2_goals,
+    jsonb_array_length(goals1) AS team1_scorer_count,
+    jsonb_array_length(goals2) AS team2_scorer_count
+FROM worldcup_matches;
