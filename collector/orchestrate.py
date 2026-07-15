@@ -95,6 +95,12 @@ def run(full=False):
     try:
         # --- tournament-wide dynamic sources ---
         safe_step(conn, "openfootball", "refresh_worldcup_matches", worldcup_collect.collect)
+        # Fast final-result fallback: fills scores from ESPN for matches that
+        # finished but openfootball (~daily) hasn't updated yet. MUST run after
+        # worldcup_collect; worldcup_collect now COALESCEs scores so its later
+        # NULLs won't wipe what this wrote.
+        safe_step(conn, "espn", "refresh_live_results",
+                  lambda: __import__("live_result_collect").collect(conn))
         safe_step(conn, "eloratings", "refresh_elo", elo_collect.collect)
         safe_step(conn, "fifa", "refresh_officials", lambda: fifa_officials_collect.collect(conn))
         safe_step(conn, "fifa", "refresh_match_context", lambda: fifa_match_context_collect.collect(conn))

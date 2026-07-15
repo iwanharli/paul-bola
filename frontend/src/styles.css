@@ -1802,6 +1802,22 @@ a { color: inherit; text-decoration: none; }
   color: var(--text-faint);
 }
 
+.result-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 12px 0 4px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-soft);
+}
+.result-banner.hit { background: rgba(74, 222, 128, 0.08); border-color: rgba(74, 222, 128, 0.3); }
+.result-banner.miss { background: rgba(251, 113, 133, 0.08); border-color: rgba(251, 113, 133, 0.3); }
+.result-score { font-size: 15px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+.result-verdict { font-size: 12px; font-weight: 700; }
+.result-banner.hit .result-verdict { color: var(--accent); }
+.result-banner.miss .result-verdict { color: var(--danger); }
+
 .team-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

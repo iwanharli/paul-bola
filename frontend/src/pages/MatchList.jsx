@@ -40,11 +40,24 @@ export default function MatchList() {
           return (
             <Link to={`/match/${m.id}`} className="match-card" key={m.id}>
               <div className="match-card-top">
-                <Pill tone={m.status === "scenario" ? "muted" : "live"}>
-                  {m.round}
+                <Pill tone={m.status === "scenario" ? "muted" : m.status === "finished" ? "danger" : "live"}>
+                  {m.status === "finished" ? "Selesai" : m.round}
                 </Pill>
                 <span className="match-meta">{formatMatchTimeUtc7(m)}</span>
               </div>
+
+              {m.status === "finished" && m.actualResult && (
+                <div className={`result-banner ${m.actualResult.modelWasRight ? "hit" : "miss"}`}>
+                  <span className="result-score">
+                    {m.home} {m.actualResult.home_goals}–{m.actualResult.away_goals} {m.away}
+                  </span>
+                  <span className="result-verdict">
+                    {m.actualResult.modelWasRight
+                      ? "✓ Prediksi model tepat"
+                      : `✗ Model jagokan ${m.actualResult.modelPick}`}
+                  </span>
+                </div>
+              )}
 
               <div className="teams">
                 <div className={`team ${favHome ? "team-fav" : ""}`}>
