@@ -609,6 +609,9 @@ function MarketsCard({ markets }) {
         teratas), jadi angkanya presisi terhadap model — bukan estimasi kasar.
       </p>
 
+      <div className="market-label">
+        Over/Under · peluang total gol kedua tim digabung tembus angka ini
+      </div>
       <div className="market-grid">
         {markets.over_under.map((ou) => (
           <div className="stat-tile market" key={ou.line}>
@@ -617,15 +620,23 @@ function MarketsCard({ markets }) {
           </div>
         ))}
       </div>
+      <p className="market-hint">
+        Contoh: Over 2.5 = {pct0(markets.over_under[1].over)} berarti peluang
+        laga berakhir dengan 3 gol atau lebih (gabungan kedua tim). Makin
+        tinggi garisnya, makin kecil peluangnya — wajar.
+      </p>
 
+      <div className="market-label">
+        BTTS (Both Teams To Score) · kedua tim sama-sama cetak gol?
+      </div>
       <div className="btts-row">
         <div className="btts-chip">
           <strong>{pct0(markets.btts.yes)}</strong>
-          <span>BTTS — Ya</span>
+          <span>Ya, dua-duanya cetak gol</span>
         </div>
         <div className="btts-chip">
           <strong>{pct0(markets.btts.no)}</strong>
-          <span>BTTS — Tidak</span>
+          <span>Tidak, ada yang clean sheet</span>
         </div>
       </div>
     </section>
