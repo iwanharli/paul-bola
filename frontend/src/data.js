@@ -57,6 +57,40 @@ export function usePredictions() {
   return { data, error };
 }
 
+// Live in-progress scores from live.json (written by live_score_collect.py).
+// Separate from predictions.json so it can poll on a fast cadence. Returns a
+// lookup keyed by normalized team-pair -> {homeScore, awayScore, minute, ...}.
+const LIVE_POLL_MS = 30 * 1000;
+const normPair = (a, b) =>
+  [a, b].map((s) => (s || "").toLowerCase().replace(/[^a-z]/g, "")).sort().join("|");
+
+export function useLiveScores() {
+  const [live, setLive] = useState({});
+  useEffect(() => {
+    let active = true;
+    async function tick() {
+      try {
+        const res = await fetch(`${import.meta.env.BASE_URL}live.json?t=${Date.now()}`, { cache: "no-store" });
+        if (!res.ok) return;
+        const json = await res.json();
+        const map = {};
+        for (const m of json.matches || []) {
+          map[normPair(m.home, m.away)] = m;
+        }
+        if (active) setLive(map);
+      } catch {
+        /* ignore transient failures; keep last known */
+      }
+    }
+    tick();
+    const id = setInterval(tick, LIVE_POLL_MS);
+    return () => { active = false; clearInterval(id); };
+  }, []);
+  return live;
+}
+
+export const liveForMatch = (live, home, away) => live[normPair(home, away)] || null;
+
 // simple flag emoji lookup for the teams in play
 export const FLAGS = {
   Algeria: "🇩🇿",
