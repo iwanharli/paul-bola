@@ -317,13 +317,20 @@ packet to `gpt-5.6-sol`. For regenerating many summaries in bulk, use
    Henderson's absence and Atlanta's heat don't affect the number yet.
 5. **Cross-source player IDs are name-matched**, not shared IDs (FIFA/ESPN/ASA
    use different namespaces). 96% match rate; accented/variant names can slip.
-6. ~~Knockout ET/penalty resolution is crude.~~ **IMPROVED** — ET now uses a
-   fatigue/caution-discounted rate (30/90 × 0.80, not a flat ⅓) so more ties
-   reach the shootout (~41% of the draw slice), with named/configurable
-   constants and a transparent ET-vs-shootout breakdown. Shootout stays 50/50
-   (no shootout data in the DB); Argentina's Emiliano Martínez is a real but
-   deliberately-unmodeled edge (`SHOOTOUT_ARG_WIN` is configurable). Still only
-   affects the ~20% draw slice, so impact on the headline number is small.
+6. ~~Knockout ET/penalty resolution is crude.~~ **IMPROVED (twice)** — ET now
+   uses a fatigue/caution-discounted rate (30/90 × 0.80, not a flat ⅓) so more
+   ties reach the shootout (~41% of the draw slice). The shootout itself was
+   originally a flat 50/50 (no data existed); `shootout_collect.py` now pulls
+   real kick-by-kick shootout history from StatsBomb (104 kicks, 12 shootouts
+   across WC2022/Euro2024/Copa2024), giving actual goalkeeper stop rates.
+   Emiliano Martínez faced 13 shots (largest sample in the set), stopping 6
+   (46.2% raw, 39.9% Bayesian-shrunk toward the 31.7% global rate) vs Jordan
+   Pickford's 4 faced / 1 stopped (29.8% shrunk) -- a real, if still
+   small-sample, edge that now moves Argentina's shootout win prob to ~55%
+   instead of an assumed 50%. Still only affects the ~20% draw slice, and the
+   stop-rate-to-win-probability mapping (`edge_scale=0.5` in
+   `shootout_win_prob()`) is a documented judgment call, not a fitted
+   parameter -- the samples are too small (n=4-13) to fit one properly.
 7. ~~Elite finishers may defy xG regression.~~ **ADDRESSED** — the model now
    uses a held-out-validated 50/50 xG/goals blend instead of pure xG, which
    over-regressed finishing. This tempered the England lean into a near-even

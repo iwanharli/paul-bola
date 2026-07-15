@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-07-16T00:11:51",
+  "generated_at": "2026-07-16T01:14:40",
   "model": {
     "name": "xG/goals Dixon-Coles + market blend",
     "heldout": [
@@ -4735,8 +4735,8 @@
     },
     {
       "source": "internal",
-      "lastRun": "2026-07-15T17:11:49.394171+00:00",
-      "runs": 13,
+      "lastRun": "2026-07-15T17:11:51.433125+00:00",
+      "runs": 14,
       "errors": 0
     },
     {
@@ -4759,8 +4759,8 @@
     },
     {
       "source": "statsbomb",
-      "lastRun": "2026-07-15T13:40:22.960848+00:00",
-      "runs": 2,
+      "lastRun": "2026-07-15T18:10:11.744776+00:00",
+      "runs": 3,
       "errors": 0
     },
     {
@@ -5404,9 +5404,16 @@
         "player_crosswalk"
       ],
       "statusCounts": {
-        "success": 13
+        "success": 14
       },
       "recentLogs": [
+        {
+          "endpoint": "orchestrate_step",
+          "scope": "export_predictions_json",
+          "status": "success",
+          "detail": "",
+          "runAt": "2026-07-15T17:11:51.433125+00:00"
+        },
         {
           "endpoint": "orchestrate_step",
           "scope": "refresh_derived_context",
@@ -5832,12 +5839,20 @@
     "statsbomb": {
       "endpoints": [
         "competition",
+        "shootout",
         "shots"
       ],
       "statusCounts": {
-        "success": 2
+        "success": 3
       },
       "recentLogs": [
+        {
+          "endpoint": "shootout",
+          "scope": "all_tournaments",
+          "status": "success",
+          "detail": "12 shootouts, 104 kicks",
+          "runAt": "2026-07-15T18:10:11.744776+00:00"
+        },
         {
           "endpoint": "shots",
           "scope": "all_tournaments",
@@ -7302,8 +7317,24 @@
           "away": 0.3811
         },
         "advance": {
-          "home": 0.5181,
-          "away": 0.4818
+          "home": 0.5139,
+          "away": 0.4861
+        },
+        "knockout": {
+          "draw_after_90": 0.2047,
+          "et_win_home_given_draw": 0.3013,
+          "et_win_away_given_draw": 0.2859,
+          "shootout_given_still_level": 0.4127,
+          "shootout_win_home_pct": 0.4496,
+          "shootout_is_coinflip_assumption": false,
+          "shootout_detail": {
+            "home_keeper": "Jordan Pickford",
+            "home_stop_rate": 0.298,
+            "home_n": 4,
+            "away_keeper": "Dami\u00e1n Emiliano Mart\u00ednez",
+            "away_stop_rate": 0.399,
+            "away_n": 13
+          }
         },
         "scorelines": [
           {
@@ -7974,6 +8005,15 @@
           "home": 0.8237,
           "away": 0.1763
         },
+        "knockout": {
+          "draw_after_90": 0.188,
+          "et_win_home_given_draw": 0.4034,
+          "et_win_away_given_draw": 0.1195,
+          "shootout_given_still_level": 0.4771,
+          "shootout_win_home_pct": 0.5,
+          "shootout_is_coinflip_assumption": true,
+          "shootout_detail": null
+        },
         "scorelines": [
           {
             "score": "2-0",
@@ -8548,6 +8588,15 @@
         "advance": {
           "home": 0.8421,
           "away": 0.1579
+        },
+        "knockout": {
+          "draw_after_90": 0.1689,
+          "et_win_home_given_draw": 0.4288,
+          "et_win_away_given_draw": 0.1189,
+          "shootout_given_still_level": 0.4522,
+          "shootout_win_home_pct": 0.5,
+          "shootout_is_coinflip_assumption": true,
+          "shootout_detail": null
         },
         "scorelines": [
           {

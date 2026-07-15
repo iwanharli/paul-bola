@@ -304,6 +304,27 @@ CREATE TABLE IF NOT EXISTS team_elo_ratings (
     PRIMARY KEY (country_code, snapshot_date)
 );
 
+-- Real penalty-shootout kick-by-kick history from StatsBomb open data
+-- (period=5 events), covering every shootout in WC2022/Euro2024/Copa2024.
+-- Built to replace the model's hardcoded 50/50 shootout-win assumption with
+-- an actual goalkeeper save rate where the sample supports it (e.g. Emiliano
+-- Martinez faced 9 shots across 2 shootouts in WC2022, stopping 4 --  a
+-- concrete number instead of relying on reputation alone). Small samples are
+-- still small samples -- see keeper_shootout_summary for n before trusting.
+CREATE TABLE IF NOT EXISTS shootout_history (
+    id                  SERIAL PRIMARY KEY,
+    tournament          TEXT NOT NULL,
+    match_id            BIGINT NOT NULL,
+    kick_order          INTEGER NOT NULL,
+    kicking_team        TEXT NOT NULL,
+    kicker_name         TEXT NOT NULL,
+    outcome             TEXT NOT NULL,   -- 'Goal', 'Saved', 'Off T', 'Post', etc.
+    opposing_team       TEXT NOT NULL,
+    opposing_goalkeeper TEXT,
+    fetched_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (match_id, kick_order)
+);
+
 -- Manually curated head-to-head history for a specific matchup, since no free
 -- API offers structured H2H going back to 1962. Sourced from notes.txt.
 CREATE TABLE IF NOT EXISTS h2h_history (

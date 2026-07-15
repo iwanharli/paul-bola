@@ -22,7 +22,7 @@ load_dotenv()
 import db
 from xg_model import build_xg_match_table
 from final_predict import (fit_all, score_matrix, BLEND_ALPHA,
-                           ET_MINUTES_FRACTION, ET_INTENSITY, SHOOTOUT_ARG_WIN)
+                           ET_MINUTES_FRACTION, ET_INTENSITY, shootout_win_prob)
 from compare_models import KNOCKOUT_START, fit, shrink, predict_result_probs
 from scorer_model import (player_tournament_xg, unavailable_players,
                           penalty_takers_tournament, team_penalty_rate, scorer_probs,
@@ -49,7 +49,7 @@ def american_to_prob(ml):
     return 100 / (ml + 100) if ml > 0 else -ml / (-ml + 100)
 
 
-def resolve_advance(mat, lam, mu):
+def resolve_advance(mat, lam, mu, shootout_win_home=0.5, shootout_detail=None):
     p_a = float(np.tril(mat, -1).sum())   # team-a (matrix rows) wins
     p_d = float(np.trace(mat))
     p_b = float(np.triu(mat, 1).sum())
@@ -66,21 +66,20 @@ def resolve_advance(mat, lam, mu):
                 et_b += p
             else:
                 et_d += p
-    adv_a = p_a + p_d * (et_a + et_d * SHOOTOUT_ARG_WIN)
-    adv_b = p_b + p_d * (et_b + et_d * (1 - SHOOTOUT_ARG_WIN))
+    adv_a = p_a + p_d * (et_a + et_d * shootout_win_home)
+    adv_b = p_b + p_d * (et_b + et_d * (1 - shootout_win_home))
 
     # Breakdown of the p_d (90-min draw) slice, so the frontend can show
     # "if it's still level after 90, here's how ET and penalties split it"
-    # instead of only the final blended advance number. Penalty shootout
-    # itself is intentionally left at SHOOTOUT_ARG_WIN=0.50 (a coin flip) --
-    # there's no shootout-outcome data in the DB to fit a real rate from.
-    # Emiliano Martinez's real shootout pedigree (2022 WC final, 2x Copa
-    # America) is a known, deliberately-unmodeled edge for Argentina.
-    # NOTE: SHOOTOUT_ARG_WIN is applied as team-A's (home's) shootout win
-    # share here regardless of whether team A is actually Argentina -- only
-    # harmless because the value is a symmetric 0.5 coin flip; the name is a
-    # holdover from when this was hardcoded for the Argentina/England match
-    # specifically.
+    # instead of only the final blended advance number.
+    #
+    # shootout_win_home defaults to 0.5 (coin flip) for matchups with no
+    # specific goalkeeper data wired in (e.g. the Spain final scenarios).
+    # For Argentina vs England specifically, the caller passes a value
+    # derived from real (small-sample, Bayesian-shrunk) shootout stop rates
+    # via final_predict.shootout_win_prob() -- see shootout_detail for the
+    # keepers/sample sizes/rates behind that number.
+    #
     # et_a/et_b/et_d already sum to ~1.0 -- they're the conditional
     # distribution over the extra-time sub-game (computed from its own
     # lam_et/mu_et Poisson), not yet scaled by p_d. Don't divide by p_d again.
@@ -89,8 +88,9 @@ def resolve_advance(mat, lam, mu):
         "et_win_home_given_draw": round(et_a, 4),
         "et_win_away_given_draw": round(et_b, 4),
         "shootout_given_still_level": round(et_d, 4),
-        "shootout_win_home_pct": SHOOTOUT_ARG_WIN,
-        "shootout_is_coinflip_assumption": True,
+        "shootout_win_home_pct": round(shootout_win_home, 4),
+        "shootout_is_coinflip_assumption": shootout_detail is None,
+        "shootout_detail": shootout_detail,
     }
     return p_a, p_d, p_b, adv_a, adv_b, knockout_breakdown
 
@@ -105,11 +105,23 @@ def top_scorelines(mat, home_is_a, n=6):
     return out
 
 
-def predict_match(attack, defense, team_idx, home, away):
+def predict_match(attack, defense, team_idx, home, away, home_keeper=None, away_keeper=None):
     """Returns prediction oriented to home/away (matrix internally a=away? we
-    call score_matrix(home, away) so a=home)."""
+    call score_matrix(home, away) so a=home). Pass home_keeper/away_keeper
+    (StatsBomb-style full names) to use real shootout stop-rate data instead
+    of the 0.5 coin-flip default -- see shootout_win_prob()."""
     mat, lam_home, mu_away = score_matrix(attack, defense, team_idx, home, away)
-    p_home, p_draw, p_away, adv_home, adv_away, knockout = resolve_advance(mat, lam_home, mu_away)
+
+    shootout_p, shootout_detail = 0.5, None
+    if home_keeper and away_keeper:
+        sconn = db.connect()
+        try:
+            shootout_p, shootout_detail = shootout_win_prob(sconn, home_keeper, away_keeper)
+        finally:
+            sconn.close()
+
+    p_home, p_draw, p_away, adv_home, adv_away, knockout = resolve_advance(
+        mat, lam_home, mu_away, shootout_win_home=shootout_p, shootout_detail=shootout_detail)
     return {
         "xg": {"home": round(lam_home, 2), "away": round(mu_away, 2)},
         "result90": {"home": round(p_home, 4), "draw": round(p_draw, 4), "away": round(p_away, 4)},
@@ -848,7 +860,8 @@ def build():
         }
 
     # --- hero match: England (home) vs Argentina (away) ---
-    eng_arg = predict_match(attack, defense, team_idx, "England", "Argentina")
+    eng_arg = predict_match(attack, defense, team_idx, "England", "Argentina",
+                            home_keeper="Jordan Pickford", away_keeper="Damián Emiliano Martínez")
     m_eng, m_draw, m_arg = (american_to_prob(175), american_to_prob(180), american_to_prob(200))
     s = m_eng + m_draw + m_arg
     market = {"home": round(m_eng / s, 4), "draw": round(m_draw / s, 4), "away": round(m_arg / s, 4)}
