@@ -162,7 +162,9 @@ export default function MatchDetail() {
         </section>
       </div>
 
-      {p.markets && <MarketsCard markets={p.markets} homeName={m.home} awayName={m.away} />}
+      {p.markets && (
+        <MarketsCard markets={p.markets} corners={p.corners_cards} homeName={m.home} awayName={m.away} />
+      )}
 
       <section className="panel">
         <h2>Ringkasan form</h2>
@@ -600,7 +602,7 @@ function ScorerCol({ title, list }) {
   );
 }
 
-function MarketsCard({ markets, homeName, awayName }) {
+function MarketsCard({ markets, corners, homeName, awayName }) {
   return (
     <section className="panel panel-market">
       <h2>Pasar taruhan</h2>
@@ -641,6 +643,25 @@ function MarketsCard({ markets, homeName, awayName }) {
       </div>
 
       <div className="market-label">
+        Double Chance · gabungan 2 dari 3 kemungkinan hasil (lebih aman, odds
+        lebih kecil)
+      </div>
+      <div className="market-grid">
+        <div className="stat-tile market">
+          <span>{homeName} / Seri</span>
+          <strong>{pct0(markets.double_chance.home_or_draw)}</strong>
+        </div>
+        <div className="stat-tile market">
+          <span>{homeName} / {awayName}</span>
+          <strong>{pct0(markets.double_chance.home_or_away)}</strong>
+        </div>
+        <div className="stat-tile market">
+          <span>Seri / {awayName}</span>
+          <strong>{pct0(markets.double_chance.draw_or_away)}</strong>
+        </div>
+      </div>
+
+      <div className="market-label">
         Handicap · peluang menang setelah garis gol ditambahkan/dikurangi
       </div>
       <div className="market-grid">
@@ -672,6 +693,31 @@ function MarketsCard({ markets, homeName, awayName }) {
           <span>{awayName} clean sheet</span>
         </div>
       </div>
+
+      {corners && (
+        <>
+          <div className="market-label">
+            Total Corner · dari rata-rata corner tiap tim di turnamen ini
+          </div>
+          <div className="market-grid">
+            {corners.corners_over_under.map((c) => (
+              <div className="stat-tile market" key={c.line}>
+                <span>Over {c.line} corner</span>
+                <strong>{pct0(c.over)}</strong>
+              </div>
+            ))}
+          </div>
+          <p className="market-hint">
+            Ekspektasi: {homeName} {corners.corners_expected.home} + {awayName}{" "}
+            {corners.corners_expected.away} = {corners.corners_expected.total} corner
+            total. Kartu (kuning+merah) ekspektasi: {homeName} {corners.cards_expected.home},{" "}
+            {awayName} {corners.cards_expected.away}. Catatan jujur: ini model paling
+            kasar di kartu ini — cuma rata-rata {corners.sample_size.home_matches} laga
+            turnamen per tim (di-shrink ke rata-rata 101 laga), bukan model
+            berbasis kejadian di lapangan seperti market gol di atas.
+          </p>
+        </>
+      )}
     </section>
   );
 }
