@@ -382,13 +382,22 @@ def build():
             WHERE round IN ('Round of 32', 'Round of 16', 'Quarter-final', 'Semi-final', 'Final')
             ORDER BY match_num
         """, conn)
+        # Recent-health-aware freshness: all-time counts are kept for context,
+        # but "needs attention" should reflect whether a source is failing NOW,
+        # not that it logged one benign error weeks ago. recent_errors = last
+        # 24h; last_status = status of each source's most recent log row.
         freshness_df = pd.read_sql("""
-            SELECT source, max(run_at) AS last_run,
-                   count(*) FILTER (WHERE status = 'error') AS errors,
-                   count(*) AS runs
-            FROM collection_log
-            GROUP BY source
-            ORDER BY source
+            SELECT cl.source,
+                   max(cl.run_at) AS last_run,
+                   count(*) FILTER (WHERE cl.status = 'error') AS errors,
+                   count(*) FILTER (WHERE cl.status = 'error'
+                                    AND cl.run_at > now() - interval '24 hours') AS recent_errors,
+                   count(*) AS runs,
+                   (SELECT status FROM collection_log c2
+                    WHERE c2.source = cl.source ORDER BY c2.run_at DESC LIMIT 1) AS last_status
+            FROM collection_log cl
+            GROUP BY cl.source
+            ORDER BY cl.source
         """, conn)
         collection_log_df = pd.read_sql("""
             SELECT source, endpoint, scope, status, detail, run_at
@@ -774,6 +783,14 @@ def build():
                 "lastRun": r.last_run.isoformat() if pd.notna(r.last_run) else None,
                 "runs": int(r.runs),
                 "errors": int(r.errors),
+                "recentErrors": int(r.recent_errors),
+                "lastStatus": r.last_status,
+                # A source needs attention only if its MOST RECENT log row is
+                # error/partial -- i.e. its latest activity is unhealthy right
+                # now. This self-heals the instant a successful run lands (no
+                # 24h lag) and ignores stale historical errors that no longer
+                # recur. recentErrors is kept as informational context only.
+                "needsAttention": r.last_status in ("error", "partial"),
             })
         return rows
 

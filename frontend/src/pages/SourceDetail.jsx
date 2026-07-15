@@ -21,7 +21,7 @@ export default function SourceDetail() {
     );
   }
 
-  const hasErrors = summary.errors > 0;
+  const needsAttention = summary.needsAttention ?? (summary.errors > 0);
   const statusCounts = detail.statusCounts || {};
 
   return (
@@ -30,16 +30,18 @@ export default function SourceDetail() {
 
       <div className="page-hero history-hero">
         <div>
-          <Pill tone={hasErrors ? "danger" : "live"}>{hasErrors ? "Attention" : "Healthy"}</Pill>
+          <Pill tone={needsAttention ? "danger" : "live"}>{needsAttention ? "Attention" : "Healthy"}</Pill>
           <h1>{source}</h1>
           <p className="page-sub">
             Detail collector log untuk source ini: endpoint yang pernah berjalan,
-            status terakhir, dan catatan run terbaru dari database.
+            status terakhir, dan catatan run terbaru dari database. Status dinilai
+            dari error 24 jam terakhir / run terakhir, bukan error lama.
           </p>
         </div>
         <div className="hero-stats">
           <StatTile label="Runs" value={summary.runs} />
-          <StatTile label="Errors" value={summary.errors} tone={hasErrors ? "away" : "home"} />
+          <StatTile label="Error (24 jam)" value={summary.recentErrors ?? 0} tone={needsAttention ? "away" : "home"} />
+          <StatTile label="Error total" value={summary.errors} />
           <StatTile label="Last run" value={formatFreshness(summary.lastRun)} />
         </div>
       </div>

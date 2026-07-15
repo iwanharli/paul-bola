@@ -1792,6 +1792,13 @@ a { color: inherit; text-decoration: none; }
   border-left-color: var(--danger);
 }
 
+.source-note {
+  display: block;
+  margin-top: 10px;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
 .team-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

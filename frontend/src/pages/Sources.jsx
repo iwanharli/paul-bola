@@ -9,7 +9,7 @@ export default function Sources() {
 
   const rows = data.dataFreshness || [];
   const totalRuns = rows.reduce((sum, row) => sum + row.runs, 0);
-  const totalErrors = rows.reduce((sum, row) => sum + row.errors, 0);
+  const attentionCount = rows.filter((row) => row.needsAttention).length;
   const latest = rows
     .map((row) => row.lastRun)
     .filter(Boolean)
@@ -30,7 +30,7 @@ export default function Sources() {
         <div className="hero-stats">
           <StatTile label="Sources" value={rows.length} />
           <StatTile label="Total runs" value={totalRuns} />
-          <StatTile label="Errors" value={totalErrors} tone={totalErrors ? "away" : "home"} />
+          <StatTile label="Perlu perhatian" value={attentionCount} tone={attentionCount ? "away" : "home"} />
         </div>
       </div>
 
@@ -39,10 +39,11 @@ export default function Sources() {
           <h2>Export frontend</h2>
           <p className="panel-sub">
             Generated at {formatFreshness(data.generated_at)}. Last collector run {formatFreshness(latest)}.
+            Status dinilai dari kesehatan terkini (error 24 jam terakhir atau run terakhir gagal), bukan error lama.
           </p>
         </div>
-        <Pill tone={totalErrors ? "danger" : "live"}>
-          {totalErrors ? `${totalErrors} errors` : "Healthy"}
+        <Pill tone={attentionCount ? "danger" : "live"}>
+          {attentionCount ? `${attentionCount} perlu perhatian` : "Healthy"}
         </Pill>
       </section>
 
@@ -56,24 +57,31 @@ export default function Sources() {
 }
 
 function SourceCard({ row }) {
-  const hasErrors = row.errors > 0;
+  const needsAttention = row.needsAttention;
   return (
     <Link
       to={`/sources/${encodeURIComponent(row.source)}`}
-      className={`source-card ${hasErrors ? "has-errors" : ""}`}
+      className={`source-card ${needsAttention ? "has-errors" : ""}`}
     >
       <div className="source-head">
         <div>
           <strong>{row.source}</strong>
           <span>Last run: {formatFreshness(row.lastRun)}</span>
         </div>
-        <Pill tone={hasErrors ? "danger" : "live"}>{hasErrors ? "Attention" : "OK"}</Pill>
+        <Pill tone={needsAttention ? "danger" : "live"}>{needsAttention ? "Attention" : "OK"}</Pill>
       </div>
 
       <div className="source-stats">
         <StatTile label="Runs" value={row.runs} />
-        <StatTile label="Errors" value={row.errors} tone={hasErrors ? "away" : "home"} />
+        <StatTile
+          label="Error (24 jam)"
+          value={row.recentErrors ?? 0}
+          tone={needsAttention ? "away" : "home"}
+        />
       </div>
+      {row.errors > 0 && (row.recentErrors ?? 0) === 0 && (
+        <span className="source-note">{row.errors} error lama (tidak berulang)</span>
+      )}
     </Link>
   );
 }
