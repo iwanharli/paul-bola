@@ -29,6 +29,60 @@ from scorer_model import (player_tournament_xg, unavailable_players,
                           FIFA_TEAM)
 
 
+def betting_audit(markets, home_goals, away_goals, home_name, away_name):
+    """
+    Retrospective betting audit: for each market, the model's pre-match pick
+    (favored side) vs what actually happened. Uses the FROZEN market
+    probabilities, so it's a genuine 'was our bet right' check, not hindsight.
+    Labels use team names (not home/away) so it reads the same on any page.
+    """
+    total = home_goals + away_goals
+    out = []
+
+    def add(market, pick, prob, outcome, hit):
+        out.append({"market": market, "pick": pick, "prob": round(float(prob), 4),
+                    "outcome": outcome, "hit": bool(hit)})
+
+    for ou in markets.get("over_under", []):
+        line = ou["line"]
+        over_hit = total > line
+        pick_over = ou["over"] >= 0.5
+        add(f"Over/Under {line}", f"{'Over' if pick_over else 'Under'} {line}",
+            ou["over"] if pick_over else ou["under"], f"{total} gol",
+            pick_over == over_hit)
+
+    if "btts" in markets:
+        btts_hit = home_goals > 0 and away_goals > 0
+        pick_yes = markets["btts"]["yes"] >= 0.5
+        add("BTTS", "Ya" if pick_yes else "Tidak",
+            markets["btts"]["yes"] if pick_yes else markets["btts"]["no"],
+            "Ya" if btts_hit else "Tidak", pick_yes == btts_hit)
+
+    for h in markets.get("handicap", []):
+        line = h["line"]
+        home_covers = (home_goals - away_goals) + line > 0
+        pick_home = h["home_covers"] >= 0.5
+        picked_team = home_name if pick_home else away_name
+        picked_line = line if pick_home else -line
+        add(f"Handicap {home_name} {line:+g}", f"{picked_team} {picked_line:+g}",
+            h["home_covers"] if pick_home else h["away_covers"],
+            f"{home_name} cover" if home_covers else f"{away_name} cover",
+            pick_home == home_covers)
+
+    if "clean_sheet" in markets:
+        for side, team, goals_against in (("home", home_name, away_goals),
+                                          ("away", away_name, home_goals)):
+            cs_hit = goals_against == 0
+            p = markets["clean_sheet"][side]
+            pick_yes = p >= 0.5
+            add(f"Clean sheet {team}", "Ya" if pick_yes else "Tidak",
+                p if pick_yes else 1 - p, "Ya" if cs_hit else "Tidak",
+                pick_yes == cs_hit)
+
+    hits = sum(1 for m in out if m["hit"])
+    return {"markets": out, "hits": hits, "total": len(out)}
+
+
 def freeze_prediction(match_key, kickoff_utc, is_finished, prediction):
     """
     Lock a forecast to its pre-match value. A prediction must not change once
@@ -1067,6 +1121,7 @@ def build():
                     "home": scorers_for_side(match_meta, r.team1),
                     "away": scorers_for_side(match_meta, r.team2),
                 },
+                "betting": (override or {}).get("betting"),
             })
 
         n = len(rows)
@@ -1123,27 +1178,47 @@ def build():
     sf_result = match_result("England", "Argentina")
     sf_status = "finished" if sf_result else "upcoming"
 
+    SF_KICKOFF = datetime.datetime(2026, 7, 15, 19, 0, tzinfo=datetime.timezone.utc)
     eng_arg_prediction = {**eng_arg, "market": market, "blend": blend,
                           "scorers": {"home": scorers_for("England", eng_arg["xg"]["home"]),
                                       "away": scorers_for("Argentina", eng_arg["xg"]["away"])}}
-    # Lock to the pre-match value once the semifinal has kicked off / finished
-    # (15:00 ET = 19:00 UTC on 2026-07-15).
-    eng_arg_prediction = freeze_prediction(
-        "eng-arg-sf",
-        datetime.datetime(2026, 7, 15, 19, 0, tzinfo=datetime.timezone.utc),
-        bool(sf_result), eng_arg_prediction)
+    # Lock to the pre-match value once the semifinal has kicked off / finished.
+    eng_arg_prediction = freeze_prediction("eng-arg-sf", SF_KICKOFF, bool(sf_result), eng_arg_prediction)
+
+    # The BASIS (attack/defense strength, tournament form) is what justifies the
+    # frozen prediction, so it must be frozen too -- otherwise the finished
+    # card would show a post-match "dasar penilaian" (contaminated by the
+    # semifinal now in training) next to a pre-match prediction.
+    eng_arg_basis = {
+        "strength": {"home": strength("England"), "away": strength("Argentina")},
+        "form": {"home": team_form("England"), "away": team_form("Argentina")},
+        "notes": [
+            "Model input is a 50/50 blend of xG and actual goals (held-out validated).",
+            "Argentina scored 17 goals from only 11.25 xG (+5.75) -- partly unsustainable finishing.",
+            "England created more total xG (11.94) than Argentina despite fewer goals.",
+            "Final number blends 25% model / 75% market; the market is the stronger signal.",
+        ],
+    }
+    eng_arg_basis = freeze_prediction("eng-arg-sf:basis", SF_KICKOFF, bool(sf_result), eng_arg_basis)
 
     # The "was the model right" verdict MUST read the FROZEN pre-match
     # prediction, not the freshly-recomputed (and now training-contaminated)
     # one -- otherwise the verdict would flip to whatever hindsight says.
     sf_extra = {}
+    sf_betting = None
     if sf_result:
         frozen_r90 = eng_arg_prediction["result90"]
         model_pick = max(frozen_r90.items(), key=lambda kv: kv[1])[0]
         model_pick_name = {"home": "England", "draw": "Draw", "away": "Argentina"}[model_pick]
+        # betting audit from frozen markets (home=England, away=Argentina)
+        if "markets" in eng_arg_prediction:
+            sf_betting = betting_audit(eng_arg_prediction["markets"],
+                                       sf_result["home_goals"], sf_result["away_goals"],
+                                       "England", "Argentina")
         sf_extra = {"actualResult": {**sf_result,
                                      "modelPick": model_pick_name,
-                                     "modelWasRight": model_pick_name == sf_result["winner"]}}
+                                     "modelWasRight": model_pick_name == sf_result["winner"],
+                                     **({"betting": sf_betting} if sf_betting else {})}}
 
     matches = [{
         "id": "eng-arg-sf",
@@ -1152,16 +1227,7 @@ def build():
         "home": "England", "away": "Argentina", "status": sf_status,
         **sf_extra,
         "prediction": eng_arg_prediction,
-        "basis": {
-            "strength": {"home": strength("England"), "away": strength("Argentina")},
-            "form": {"home": team_form("England"), "away": team_form("Argentina")},
-            "notes": [
-                "Model input is a 50/50 blend of xG and actual goals (held-out validated).",
-                "Argentina scored 17 goals from only 11.25 xG (+5.75) -- partly unsustainable finishing.",
-                "England created more total xG (11.94) than Argentina despite fewer goals.",
-                "Final number blends 25% model / 75% market; the market is the stronger signal.",
-            ],
-        },
+        "basis": eng_arg_basis,
         "intelligence": enrich("England", "Argentina", "Atlanta", "2026-07-15"),
     }]
 
@@ -1214,7 +1280,8 @@ def build():
     # backtest so the history verdict matches the forecast card for that match.
     frozen_overrides = {
         frozenset([m["home"], m["away"]]): {"home": m["home"],
-                                            "result90": m["prediction"]["result90"]}
+                                            "result90": m["prediction"]["result90"],
+                                            "betting": m.get("actualResult", {}).get("betting")}
         for m in matches if m.get("status") == "finished"
     }
 
