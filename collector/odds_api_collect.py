@@ -21,12 +21,10 @@ load_dotenv()
 import db
 from source_utils import american_price, pair_matches, parse_date, team_names_match
 
+from config import ODDS_API_SPORT_KEYS
+
 BASE = "https://api.the-odds-api.com/v4"
-DEFAULT_SPORT_KEYS = [
-    "soccer_fifa_world_cup",
-    "soccer_international",
-    "soccer_conmebol_copa_america",
-]
+DEFAULT_SPORT_KEYS = ODDS_API_SPORT_KEYS
 
 
 def _current_matches(conn):

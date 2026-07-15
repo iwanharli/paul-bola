@@ -18,10 +18,17 @@ at x=100). This is the standard simple xG feature set (distance + angle);
 it won't match Opta/StatsBomb's proprietary models but is a real, validated
 improvement over "count the goals".
 """
+import os
+import sys
+
 import requests
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
+
+# make the shared collector/config importable whether run standalone or imported
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "collector"))
+from config import FIFA_COMPETITION_ID, FIFA_SEASON_ID  # noqa: E402
 
 # pitch dimensions in metres for scaling the 0-100 grid
 PITCH_LEN = 105.0
@@ -30,8 +37,6 @@ GOAL_WIDTH = 7.32
 
 FIFA_BASE = "https://api.fifa.com/api/v3"
 FIFA_HEADERS = {"User-Agent": "Mozilla/5.0"}
-FIFA_COMPETITION_ID = 17
-FIFA_SEASON_ID = 285023
 
 
 def fetch_fifa_match_map():

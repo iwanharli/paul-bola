@@ -25,10 +25,10 @@ load_dotenv()
 
 import db
 
+from config import FIFA_COMPETITION_ID as COMPETITION_ID, FIFA_SEASON_ID as SEASON_ID
+
 BASE = "https://api.fifa.com/api/v3"
 HEADERS = {"User-Agent": "Mozilla/5.0"}
-COMPETITION_ID = 17
-SEASON_ID = 285023
 
 SHOT_EVENT_TYPES = {12, 0}  # 12 = Attempt at Goal (non-goal outcome), 0 = Goal!
 
