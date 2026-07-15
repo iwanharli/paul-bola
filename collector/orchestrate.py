@@ -60,6 +60,8 @@ import derived_context_collect
 import build_player_crosswalk
 import referee_tendency_collect
 import h2h_collect
+# weather_backfill imported lazily in its step to avoid a circular import
+# (it reads GROUND_COORDS from this module).
 
 # how many days back to look for matches whose data may still be settling
 LOOKBACK_DAYS = 3
@@ -147,6 +149,14 @@ def run(full=False):
 
         safe_step(conn, "open-meteo", "refresh_final_scenario_weather",
                   lambda: final_scenarios_collect.collect(conn))
+
+        # Historical weather never changes (past dates), so backfill it only on
+        # --full, not every 15-min cron -- 99 API calls per run would be waste.
+        if full or os.environ.get("REFRESH_WEATHER") == "1":
+            def do_weather_backfill():
+                import weather_backfill
+                weather_backfill.collect(conn)
+            safe_step(conn, "open-meteo", "backfill_historical_weather", do_weather_backfill)
 
         # --- static / club sources: only on --full or REFRESH_CLUB=1 ---
         if full or os.environ.get("REFRESH_CLUB") == "1":
