@@ -141,12 +141,79 @@ def market_probs(mat):
         return {"line": line, "home_covers": round(float(home_covers), 4),
                 "away_covers": round(1 - float(home_covers), 4)}
 
+    p_home_win = float(np.tril(mat, -1).sum())
+    p_draw = float(np.trace(mat))
+    p_away_win = float(np.triu(mat, 1).sum())
+
     return {
         "over_under": [over_under(1.5), over_under(2.5), over_under(3.5)],
         "btts": {"yes": round(float(btts_yes), 4), "no": round(1 - float(btts_yes), 4)},
         "handicap": [handicap(-1.5), handicap(-0.5), handicap(0.5), handicap(1.5)],
+        "double_chance": {
+            "home_or_draw": round(p_home_win + p_draw, 4),
+            "home_or_away": round(p_home_win + p_away_win, 4),
+            "draw_or_away": round(p_draw + p_away_win, 4),
+        },
         "clean_sheet": {"home": round(float(clean_sheet_home), 4),
                         "away": round(float(clean_sheet_away), 4)},
+    }
+
+
+CORNERS_CARDS_PRIOR_STRENGTH = 6  # pseudo-matches of shrinkage; team samples are only n=6 (their own tournament run)
+
+
+def team_corners_cards_rate(conn, team_name):
+    """
+    Bayesian-shrunk per-match average corners/yellow/red cards for a team,
+    from espn_match_team_stats (only 6 tournament matches per team so far --
+    shrunk toward the 101-match tournament-wide average, same treatment as
+    Elo/shootout shrinkage elsewhere in this pipeline). This is a much
+    coarser estimate than the goal model (no shot-quality equivalent for
+    corners/cards exists), so treat it as a rough signal, not a fitted rate.
+    """
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT avg(won_corners), avg(yellow_cards), avg(red_cards)
+        FROM espn_match_team_stats WHERE won_corners IS NOT NULL
+    """)
+    g_corners, g_yellow, g_red = (float(v) for v in cur.fetchone())
+
+    cur.execute("""
+        SELECT count(*), avg(won_corners), avg(yellow_cards), avg(red_cards)
+        FROM espn_match_team_stats WHERE team_name = %s AND won_corners IS NOT NULL
+    """, (team_name,))
+    n, corners, yellow, red = cur.fetchone()
+    if not n:
+        return {"corners": g_corners, "yellow": g_yellow, "red": g_red, "n": 0}
+
+    n = int(n)
+    w = n / (n + CORNERS_CARDS_PRIOR_STRENGTH)
+    return {
+        "corners": round(w * float(corners) + (1 - w) * g_corners, 2),
+        "yellow": round(w * float(yellow) + (1 - w) * g_yellow, 2),
+        "red": round(w * float(red) + (1 - w) * g_red, 2),
+        "n": n,
+    }
+
+
+def corners_cards_market(conn, home, away):
+    from scipy.stats import poisson as _poisson
+    h = team_corners_cards_rate(conn, home)
+    a = team_corners_cards_rate(conn, away)
+    total_corners_exp = h["corners"] + a["corners"]
+
+    def corners_over(line):
+        under = sum(_poisson.pmf(k, total_corners_exp) for k in range(int(line) + 1))
+        return {"line": line, "over": round(1 - under, 4), "under": round(under, 4)}
+
+    return {
+        "corners_expected": {"home": h["corners"], "away": a["corners"], "total": round(total_corners_exp, 2)},
+        "corners_over_under": [corners_over(8.5), corners_over(9.5), corners_over(10.5)],
+        "cards_expected": {
+            "home": round(h["yellow"] + h["red"], 2),
+            "away": round(a["yellow"] + a["red"], 2),
+        },
+        "sample_size": {"home_matches": h["n"], "away_matches": a["n"]},
     }
 
 
@@ -167,7 +234,7 @@ def predict_match(attack, defense, team_idx, home, away, home_keeper=None, away_
 
     p_home, p_draw, p_away, adv_home, adv_away, knockout = resolve_advance(
         mat, lam_home, mu_away, shootout_win_home=shootout_p, shootout_detail=shootout_detail)
-    return {
+    result = {
         "xg": {"home": round(lam_home, 2), "away": round(mu_away, 2)},
         "result90": {"home": round(p_home, 4), "draw": round(p_draw, 4), "away": round(p_away, 4)},
         "advance": {"home": round(adv_home, 4), "away": round(adv_away, 4)},
@@ -175,6 +242,13 @@ def predict_match(attack, defense, team_idx, home, away, home_keeper=None, away_
         "scorelines": top_scorelines(mat, home_is_a=True),
         "markets": market_probs(mat),
     }
+
+    cc_conn = db.connect()
+    try:
+        result["corners_cards"] = corners_cards_market(cc_conn, home, away)
+    finally:
+        cc_conn.close()
+    return result
 
 
 def result_label(g1, g2):
