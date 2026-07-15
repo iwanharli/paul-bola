@@ -32,5 +32,20 @@ module.exports = {
       error_file: "../cron.log",
       merge_logs: true,
     },
+    // Serves frontend/dist as a static site (requires `npm run build` first
+    // and the `serve` package installed -- see frontend/package.json). Port
+    // is proxied by nginx (paul.kecup.in -> 127.0.0.1:13801), following this
+    // server's existing convention of one PM2 process per site per port.
+    {
+      name: "paul-bola-fe-13801",
+      cwd: "./frontend",
+      script: "./node_modules/.bin/serve",
+      args: "-s dist -l 13801",
+      autorestart: true,
+      watch: false,
+      out_file: "../fe.log",
+      error_file: "../fe.log",
+      merge_logs: true,
+    },
   ],
 };
