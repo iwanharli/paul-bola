@@ -17,7 +17,7 @@ load_dotenv()
 
 import db
 
-SOURCE_URL = "https://raw.githubusercontent.com/openfootball/worldcup.json/master/2026/worldcup.json"
+from config import OPENFOOTBALL_URL as SOURCE_URL
 
 
 def _score(match: dict, key: str, idx: int):

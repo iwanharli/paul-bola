@@ -21,7 +21,7 @@ import os
 
 import requests
 
-BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world"
+from config import ESPN_BASE as BASE
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 OUT_PATHS = ["../frontend/public/live.json", "../frontend/dist/live.json"]
 
