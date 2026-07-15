@@ -59,6 +59,30 @@ export default function HistoryDetail() {
         </div>
       </div>
 
+      {match.actualXg && (match.actualXg.home != null || match.actualXg.away != null) && (
+        <section className="panel">
+          <h2>Gol vs xG aktual</h2>
+          <p className="panel-sub">
+            Apakah tiap tim mencetak sesuai kualitas peluang (xG) mereka di laga ini?
+            Selisih besar = keberuntungan/penyelesaian tak berkelanjutan.
+          </p>
+          <div className="detail-grid equal">
+            <XgVsGoals name={match.home} goals={Number(match.actualScore.split("-")[0])} xg={match.actualXg.home} />
+            <XgVsGoals name={match.away} goals={Number(match.actualScore.split("-")[1])} xg={match.actualXg.away} />
+          </div>
+        </section>
+      )}
+
+      {match.scorers && (match.scorers.home.length > 0 || match.scorers.away.length > 0) && (
+        <section className="panel">
+          <h2>Pencetak gol</h2>
+          <div className="scorer-cols">
+            <ScorerList title={match.home} list={match.scorers.home} />
+            <ScorerList title={match.away} list={match.scorers.away} />
+          </div>
+        </section>
+      )}
+
       <section className="panel primary-panel">
         <div className="panel-head">
           <div>
@@ -127,4 +151,43 @@ export default function HistoryDetail() {
 function ResultName({ name }) {
   if (!name || name === "Draw") return <>{name || "-"}</>;
   return <><Flag team={name} /> {name}</>;
+}
+
+function XgVsGoals({ name, goals, xg }) {
+  const diff = xg != null ? goals - xg : null;
+  return (
+    <div className="basis-team">
+      <h3><Flag team={name} /> <span>{name}</span></h3>
+      <div className="basis-stat"><span>Gol</span><b>{goals}</b></div>
+      <div className="basis-stat"><span>xG aktual</span><b>{xg ?? "-"}</b></div>
+      {diff != null && (
+        <div className="basis-stat">
+          <span>Gol − xG</span>
+          <b className={diff > 0.5 ? "over" : diff < -0.5 ? "under" : ""}>
+            {diff >= 0 ? "+" : ""}{diff.toFixed(1)}
+          </b>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ScorerList({ title, list }) {
+  return (
+    <div className="scorer-col">
+      <h3>{title}</h3>
+      {list.length === 0 ? (
+        <p className="tiny-note">Tidak mencetak gol.</p>
+      ) : (
+        list.map((s, i) => (
+          <div className="history-scorer" key={`${s.name}-${s.minute}-${i}`}>
+            <span>{s.name}</span>
+            <em>
+              {s.minute}'{s.penalty && <span className="pen-tag">PEN</span>}
+            </em>
+          </div>
+        ))
+      )}
+    </div>
+  );
 }
