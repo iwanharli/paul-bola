@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
-import { formatGeneratedAtUtc7, formatMatchTimeUtc7, usePredictions, pct0 } from "../data.js";
+import { formatGeneratedAtUtc7, formatMatchTimeUtc7, usePredictions, useLiveScores, liveForMatch, pct0 } from "../data.js";
 import { Flag, FullPageLoader, ProbBar, Pill, StatTile } from "../components.jsx";
 
 export default function MatchList() {
   const { data, error } = usePredictions();
+  const live = useLiveScores();
   if (error) return <div className="state">Gagal memuat prediksi.</div>;
   if (!data) return <FullPageLoader text="Memuat forecast" />;
 
@@ -45,6 +46,16 @@ export default function MatchList() {
                 </Pill>
                 <span className="match-meta">{formatMatchTimeUtc7(m)}</span>
               </div>
+
+              {(() => {
+                const ls = m.status !== "finished" && liveForMatch(live, m.home, m.away);
+                return ls ? (
+                  <div className="live-banner">
+                    <span className="live-dot" /> LIVE {ls.minute}
+                    <span className="live-score">{m.home} {ls.homeScore}–{ls.awayScore} {m.away}</span>
+                  </div>
+                ) : null;
+              })()}
 
               {m.status === "finished" && m.actualResult && (
                 <div className={`result-banner ${m.actualResult.modelWasRight ? "hit" : "miss"}`}>

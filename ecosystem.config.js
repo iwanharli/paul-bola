@@ -45,6 +45,21 @@ module.exports = {
       error_file: path.join(ROOT, "cron.log"),
       merge_logs: true,
     },
+    // Live in-progress scores on a FAST cadence (every minute), separate from
+    // the 15-min data cron. Writes only live.json (display-only, no DB), so
+    // it's cheap enough to run every minute during matches.
+    {
+      name: "paul-bola-live",
+      cwd: path.join(ROOT, "collector"),
+      script: path.join(ROOT, "venv", "bin", "python"),
+      args: "live_score_collect.py",
+      autorestart: false,
+      cron_restart: "* * * * *",
+      watch: false,
+      out_file: path.join(ROOT, "live.log"),
+      error_file: path.join(ROOT, "live.log"),
+      merge_logs: true,
+    },
     // Serves frontend/dist as a static site (requires `npm run build` first
     // and the `serve` package installed -- see frontend/package.json). Port
     // is proxied by nginx (paul.kecup.in -> 127.0.0.1:13801), following this

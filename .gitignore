@@ -8,6 +8,8 @@ __pycache__/
 .DS_Store
 cron.log
 fe.log
+live.log
+frontend/public/live.json
 # Regenerated every 15 min by the PM2 cron (orchestrate.py -> export_predictions.py)
 # on any deployed server -- committing it causes a git pull conflict every single
 # time the cron fires between a local push and the next `git pull` on the server.
