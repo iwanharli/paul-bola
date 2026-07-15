@@ -336,7 +336,8 @@ CREATE TABLE IF NOT EXISTS h2h_history (
     score_summary   TEXT NOT NULL,   -- e.g. "Argentina 2-1 England"
     winner          TEXT,            -- NULL for draws decided outside normal play is still recorded via note
     notes           TEXT,
-    source          TEXT NOT NULL DEFAULT 'manual:notes.txt'
+    source          TEXT NOT NULL DEFAULT 'manual:notes.txt',
+    UNIQUE (team1, team2, year, score_summary)
 );
 
 -- ESPN's public site API (site.api.espn.com, free, no key) fills three gaps

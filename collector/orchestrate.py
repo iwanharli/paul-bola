@@ -58,6 +58,8 @@ import sportmonks_collect
 import wikidata_collect
 import derived_context_collect
 import build_player_crosswalk
+import referee_tendency_collect
+import h2h_collect
 
 # how many days back to look for matches whose data may still be settling
 LOOKBACK_DAYS = 3
@@ -167,6 +169,13 @@ def run(full=False):
 
         safe_step(conn, "internal", "rebuild_player_crosswalk", build_player_crosswalk.build)
         safe_step(conn, "internal", "refresh_derived_context", lambda: derived_context_collect.collect(conn))
+        # Recomputes ALL 40+ referees' card tendency from data already
+        # collected (fifa_match_officials x espn_match_team_stats) -- no new
+        # external calls beyond a fresh ESPN scoreboard crosswalk pull.
+        safe_step(conn, "internal", "refresh_referee_tendency", referee_tendency_collect.collect)
+        # H2H for the hero Argentina/England matchup specifically (ESPN's
+        # headToHeadGames, ~last 5 meetings, auto-refreshing).
+        safe_step(conn, "espn", "refresh_h2h_eng_arg", lambda: h2h_collect.collect("760515"))
 
         # Regenerate the frontend's predictions.json from the just-refreshed DB.
         # Without this, PM2's cron keeps the database current but the site
