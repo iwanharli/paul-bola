@@ -3,7 +3,11 @@ export function playerSlug(name = "", team = "") {
 }
 
 export function findPlayer(players = [], slug = "") {
-  const [name, team] = decodeURIComponent(slug || "").split("__");
+  // React Router's useParams() already decodes the route param once, so we
+  // must NOT decodeURIComponent again -- a second decode throws URIError on a
+  // name containing a literal "%" and crashes the page. Split the (already
+  // decoded) "name__team" directly.
+  const [name, team] = (slug || "").split("__");
   return players.find((player) => player.name === name && player.team === team);
 }
 

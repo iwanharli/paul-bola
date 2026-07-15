@@ -297,6 +297,38 @@ a { color: inherit; text-decoration: none; }
   text-align: center;
 }
 
+.error-fallback h2 { color: var(--text); margin: 0 0 8px; }
+.error-fallback p { max-width: 44ch; margin: 0 auto 16px; }
+.error-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+.error-actions button {
+  padding: 8px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--accent-strong);
+  background: rgba(74, 222, 128, 0.12);
+  color: var(--accent);
+  font-weight: 700;
+  cursor: pointer;
+}
+.error-actions a { color: var(--text-dim); font-size: 14px; }
+.error-detail {
+  max-width: 60ch;
+  margin: 0 auto;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border-soft);
+  color: var(--text-faint);
+  font-size: 12px;
+  text-align: left;
+  overflow-x: auto;
+}
+
 .full-loader {
   /* A self-sized, centered block rather than a position:fixed overlay --
      the previous fixed+inset:0 got trapped by an ancestor's transform
