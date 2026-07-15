@@ -1,5 +1,7 @@
 import { Outlet, Link, NavLink, useLocation } from "react-router-dom";
-import { AppLogo } from "./components.jsx";
+import { Suspense } from "react";
+import { AppLogo, FullPageLoader } from "./components.jsx";
+import ErrorBoundary from "./ErrorBoundary.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -50,7 +52,13 @@ export default function App() {
       </header>
       <main className="content">
         <div className="page-transition" key={location.pathname}>
-          <Outlet />
+          {/* key resets the boundary + suspense on navigation so a broken or
+              loading page never sticks after you move away */}
+          <ErrorBoundary key={location.pathname}>
+            <Suspense fallback={<FullPageLoader text="Memuat halaman" />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
         </div>
       </main>
       <footer className="footer">

@@ -3,8 +3,8 @@ import { usePredictions } from "../data.js";
 import { FullPageLoader, Pill, StatTile } from "../components.jsx";
 
 export default function SourceDetail() {
-  const { source: encodedSource } = useParams();
-  const source = decodeURIComponent(encodedSource || "");
+  // useParams() already decodes the route param -- don't decode again.
+  const { source = "" } = useParams();
   const { data, error } = usePredictions();
 
   if (error) return <div className="state">Gagal memuat detail source.</div>;
@@ -76,7 +76,7 @@ export default function SourceDetail() {
           <h2>Source health</h2>
           <div className="mini-grid">
             <StatTile label="Success" value={statusCounts.success || 0} tone="home" />
-            <StatTile label="Error" value={statusCounts.error || 0} tone={hasErrors ? "away" : "home"} />
+            <StatTile label="Error" value={statusCounts.error || 0} tone={(statusCounts.error || 0) > 0 ? "away" : "home"} />
             <StatTile label="Partial" value={statusCounts.partial || 0} />
             <StatTile label="Endpoint count" value={(detail.endpoints || []).length} />
           </div>

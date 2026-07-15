@@ -1,29 +1,34 @@
-import React from "react";
+import React, { lazy } from "react";
 import ReactDOM from "react-dom/client";
 import { createHashRouter, RouterProvider } from "react-router-dom";
 import App from "./App.jsx";
-import Dashboard from "./pages/Dashboard.jsx";
-import MatchList from "./pages/MatchList.jsx";
-import MatchDetail from "./pages/MatchDetail.jsx";
-import MatchHistory from "./pages/MatchHistory.jsx";
-import HistoryDetail from "./pages/HistoryDetail.jsx";
-import BracketPage from "./pages/BracketPage.jsx";
-import Compare from "./pages/Compare.jsx";
-import Teams from "./pages/Teams.jsx";
-import TeamDetail from "./pages/TeamDetail.jsx";
-import Players from "./pages/Players.jsx";
-import PlayerDetail from "./pages/PlayerDetail.jsx";
-import ModelLab from "./pages/ModelLab.jsx";
-import DataQuality from "./pages/DataQuality.jsx";
-import Narratives from "./pages/Narratives.jsx";
-import NarrativeDetail from "./pages/NarrativeDetail.jsx";
-import Sources from "./pages/Sources.jsx";
-import SourceDetail from "./pages/SourceDetail.jsx";
-import DataDictionary from "./pages/DataDictionary.jsx";
-import Settings from "./pages/Settings.jsx";
-import Changelog from "./pages/Changelog.jsx";
-import SourceGaps from "./pages/SourceGaps.jsx";
 import "./styles.css";
+
+// Route pages are lazy-loaded so each becomes its own chunk -- the initial
+// load no longer ships every page's code (the big pages like Bracket, which
+// pulls @xyflow/react, only download when visited). App.jsx's <Suspense>
+// shows a loader while a chunk fetches.
+const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
+const MatchList = lazy(() => import("./pages/MatchList.jsx"));
+const MatchDetail = lazy(() => import("./pages/MatchDetail.jsx"));
+const MatchHistory = lazy(() => import("./pages/MatchHistory.jsx"));
+const HistoryDetail = lazy(() => import("./pages/HistoryDetail.jsx"));
+const BracketPage = lazy(() => import("./pages/BracketPage.jsx"));
+const Compare = lazy(() => import("./pages/Compare.jsx"));
+const Teams = lazy(() => import("./pages/Teams.jsx"));
+const TeamDetail = lazy(() => import("./pages/TeamDetail.jsx"));
+const Players = lazy(() => import("./pages/Players.jsx"));
+const PlayerDetail = lazy(() => import("./pages/PlayerDetail.jsx"));
+const ModelLab = lazy(() => import("./pages/ModelLab.jsx"));
+const DataQuality = lazy(() => import("./pages/DataQuality.jsx"));
+const Narratives = lazy(() => import("./pages/Narratives.jsx"));
+const NarrativeDetail = lazy(() => import("./pages/NarrativeDetail.jsx"));
+const Sources = lazy(() => import("./pages/Sources.jsx"));
+const SourceDetail = lazy(() => import("./pages/SourceDetail.jsx"));
+const DataDictionary = lazy(() => import("./pages/DataDictionary.jsx"));
+const Settings = lazy(() => import("./pages/Settings.jsx"));
+const Changelog = lazy(() => import("./pages/Changelog.jsx"));
+const SourceGaps = lazy(() => import("./pages/SourceGaps.jsx"));
 
 const router = createHashRouter([
   {

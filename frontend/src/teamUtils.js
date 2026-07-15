@@ -3,8 +3,9 @@ export function teamSlug(name = "") {
 }
 
 export function findTeam(teams = [], slug = "") {
-  const name = decodeURIComponent(slug || "");
-  return teams.find((team) => team.name === name);
+  // useParams() already decodes the param; a second decode crashes on a
+  // literal "%". Compare the (already decoded) name directly.
+  return teams.find((team) => team.name === (slug || ""));
 }
 
 export function teamRating(team) {
