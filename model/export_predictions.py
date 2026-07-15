@@ -915,6 +915,27 @@ def build():
             score_key = (frozenset([r.team1, r.team2]), frozenset([int(r.score1), int(r.score2)]))
             meta_by_pair_score[score_key] = r
 
+        # raw (pre-blend) per-match xG, oriented by team1/team2, for the audit
+        # page: showing actual xG next to actual goals is the project's core
+        # signal (did a team over/under-perform its chances in THIS match).
+        raw_xg = {}
+        for r in raw_df.itertuples():
+            raw_xg[(r.date.strftime("%Y-%m-%d"), frozenset([r.team1, r.team2]))] = {
+                r.team1: round(float(r.xg1), 2), r.team2: round(float(r.xg2), 2),
+            }
+
+        def scorers_for_side(match_meta, side_team):
+            """Return [{name, minute, penalty}] for the given team from the
+            worldcup_matches goals1/goals2, matching orientation by team name."""
+            if match_meta is None:
+                return []
+            goals = match_meta.goals1 if match_meta.team1 == side_team else match_meta.goals2
+            out = []
+            for g in (goals or []):
+                out.append({"name": g.get("name"), "minute": g.get("minute"),
+                            "penalty": bool(g.get("penalty"))})
+            return out
+
         rows = []
         correct = 0
         log_loss = 0.0
@@ -953,6 +974,16 @@ def build():
                 },
                 "actualProbability": round(float(probs[actual]), 4),
                 "logLoss": round(float(-np.log(max(probs[actual], 1e-10))), 4),
+                "actualXg": {
+                    "home": (raw_xg.get((r.date.strftime("%Y-%m-%d"), frozenset([r.team1, r.team2])), {})
+                             .get(r.team1)),
+                    "away": (raw_xg.get((r.date.strftime("%Y-%m-%d"), frozenset([r.team1, r.team2])), {})
+                             .get(r.team2)),
+                },
+                "scorers": {
+                    "home": scorers_for_side(match_meta, r.team1),
+                    "away": scorers_for_side(match_meta, r.team2),
+                },
             })
 
         n = len(rows)
