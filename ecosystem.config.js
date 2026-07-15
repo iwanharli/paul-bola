@@ -31,7 +31,12 @@ module.exports = {
     {
       name: "bola-forecasting-collector",
       cwd: path.join(ROOT, "collector"),
-      script: path.join(ROOT, "collector", "venv", "bin", "python"),
+      // venv/ lives at the project ROOT (created by `python3 -m venv venv`
+      // run from bola-forecasting/, not from inside collector/) -- this path
+      // was wrong in every earlier version of this config and only surfaced
+      // once PM2 actually tried to launch it (manual `../venv/bin/python`
+      // invocations from inside collector/ masked the bug throughout setup).
+      script: path.join(ROOT, "venv", "bin", "python"),
       args: "orchestrate.py",
       autorestart: false,
       cron_restart: "*/15 * * * *",
