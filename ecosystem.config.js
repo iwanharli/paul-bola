@@ -18,18 +18,26 @@
 //       ../venv/bin/python orchestrate.py --full           # then a full seed run
 //   - 15-min interval suits match-day cadence; all collectors upsert, so extra
 //     runs are safe (just more calls against free/unauthenticated APIs).
+// PM2 resolves relative `cwd`/`out_file`/etc against the shell's cwd at the
+// moment `pm2 start` runs, not against this file's location -- that bit us
+// during deploy (ran `pm2 restart` from /root, PM2 looked for the script
+// under /root/frontend/...). Anchor everything to this file's own directory
+// instead so `pm2 start ecosystem.config.js` works regardless of cwd.
+const path = require("path");
+const ROOT = __dirname;
+
 module.exports = {
   apps: [
     {
       name: "bola-forecasting-collector",
-      cwd: "./collector",
-      script: "./venv/bin/python",
+      cwd: path.join(ROOT, "collector"),
+      script: path.join(ROOT, "collector", "venv", "bin", "python"),
       args: "orchestrate.py",
       autorestart: false,
       cron_restart: "*/15 * * * *",
       watch: false,
-      out_file: "../cron.log",
-      error_file: "../cron.log",
+      out_file: path.join(ROOT, "cron.log"),
+      error_file: path.join(ROOT, "cron.log"),
       merge_logs: true,
     },
     // Serves frontend/dist as a static site (requires `npm run build` first
@@ -38,13 +46,13 @@ module.exports = {
     // server's existing convention of one PM2 process per site per port.
     {
       name: "paul-bola-fe-13801",
-      cwd: "./frontend",
-      script: "./node_modules/.bin/serve",
+      cwd: path.join(ROOT, "frontend"),
+      script: path.join(ROOT, "frontend", "node_modules", ".bin", "serve"),
       args: "-s dist -l 13801",
       autorestart: true,
       watch: false,
-      out_file: "../fe.log",
-      error_file: "../fe.log",
+      out_file: path.join(ROOT, "fe.log"),
+      error_file: path.join(ROOT, "fe.log"),
       merge_logs: true,
     },
   ],
