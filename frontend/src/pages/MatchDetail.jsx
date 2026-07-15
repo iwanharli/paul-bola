@@ -162,7 +162,7 @@ export default function MatchDetail() {
         </section>
       </div>
 
-      {p.markets && <MarketsCard markets={p.markets} />}
+      {p.markets && <MarketsCard markets={p.markets} homeName={m.home} awayName={m.away} />}
 
       <section className="panel">
         <h2>Ringkasan form</h2>
@@ -600,7 +600,7 @@ function ScorerCol({ title, list }) {
   );
 }
 
-function MarketsCard({ markets }) {
+function MarketsCard({ markets, homeName, awayName }) {
   return (
     <section className="panel panel-market">
       <h2>Pasar taruhan</h2>
@@ -637,6 +637,39 @@ function MarketsCard({ markets }) {
         <div className="btts-chip">
           <strong>{pct0(markets.btts.no)}</strong>
           <span>Tidak, ada yang clean sheet</span>
+        </div>
+      </div>
+
+      <div className="market-label">
+        Handicap · peluang menang setelah garis gol ditambahkan/dikurangi
+      </div>
+      <div className="market-grid">
+        {markets.handicap.map((h) => (
+          <div className="stat-tile market" key={h.line}>
+            <span>{homeName} {h.line > 0 ? "+" : ""}{h.line}</span>
+            <strong>{pct0(h.home_covers)}</strong>
+          </div>
+        ))}
+      </div>
+      <p className="market-hint">
+        Semua garis dari sudut pandang {homeName}. Contoh: "{homeName} -0.5" =
+        peluang {homeName} menang telak (seri/kalah tidak cukup). "{homeName} +0.5"
+        = peluang {homeName} tidak kalah (menang atau seri sudah "menang" di
+        taruhan ini). Garis minus = harus menang lebih besar; garis plus =
+        boleh kalah tipis dan tetap dianggap unggul.
+      </p>
+
+      <div className="market-label">
+        Clean Sheet · tim ini tidak kebobolan sama sekali
+      </div>
+      <div className="btts-row">
+        <div className="btts-chip">
+          <strong>{pct0(markets.clean_sheet.home)}</strong>
+          <span>{homeName} clean sheet</span>
+        </div>
+        <div className="btts-chip">
+          <strong>{pct0(markets.clean_sheet.away)}</strong>
+          <span>{awayName} clean sheet</span>
         </div>
       </div>
     </section>
