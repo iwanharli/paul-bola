@@ -18,8 +18,7 @@ at x=100). This is the standard simple xG feature set (distance + angle);
 it won't match Opta/StatsBomb's proprietary models but is a real, validated
 improvement over "count the goals".
 """
-import json
-
+import requests
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LogisticRegression
@@ -29,7 +28,39 @@ PITCH_LEN = 105.0
 PITCH_WID = 68.0
 GOAL_WIDTH = 7.32
 
-MATCH_MAP_PATH = "/tmp/fifa_match_map.json"
+FIFA_BASE = "https://api.fifa.com/api/v3"
+FIFA_HEADERS = {"User-Agent": "Mozilla/5.0"}
+FIFA_COMPETITION_ID = 17
+FIFA_SEASON_ID = 285023
+
+
+def fetch_fifa_match_map():
+    """
+    mid -> {date, home_id, away_id, home, away, home_score, away_score}
+
+    Fetched live from FIFA's calendar endpoint every call (single lightweight
+    request, ~104 matches) rather than cached to a file: a prior version of
+    this function depended on a pre-existing /tmp/fifa_match_map.json that
+    was only ever created by hand during local development, so it silently
+    worked on one machine and threw FileNotFoundError on a fresh deploy.
+    """
+    resp = requests.get(f"{FIFA_BASE}/calendar/matches", params={
+        "idSeason": FIFA_SEASON_ID, "idCompetition": FIFA_COMPETITION_ID, "count": 200,
+    }, headers=FIFA_HEADERS, timeout=30)
+    resp.raise_for_status()
+    matches = resp.json()["Results"]
+
+    out = {}
+    for m in matches:
+        h, a = m.get("Home"), m.get("Away")
+        if h and a and h.get("TeamName") and a.get("TeamName"):
+            out[m["IdMatch"]] = {
+                "date": m["Date"][:10],
+                "home_id": h["IdTeam"], "away_id": a["IdTeam"],
+                "home": h["TeamName"][0]["Description"], "away": a["TeamName"][0]["Description"],
+                "home_score": h.get("Score"), "away_score": a.get("Score"),
+            }
+    return out
 
 
 def _dist_angle(dx_m, dy_m):
@@ -134,7 +165,7 @@ def build_xg_match_table(conn, pool_statsbomb=True):
         date, team1, team2, xg1, xg2, g1, g2
     """
     match_xg, xg_model = compute_match_xg(conn, pool_statsbomb=pool_statsbomb)
-    match_map = json.load(open(MATCH_MAP_PATH))
+    match_map = fetch_fifa_match_map()
 
     xg_by_match_team = {}
     for r in match_xg.itertuples():
