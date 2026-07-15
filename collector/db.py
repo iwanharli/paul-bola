@@ -1,9 +1,20 @@
 """Postgres connection + upsert helpers for db_boforecasting."""
 import json
 import os
+from pathlib import Path
 
 import psycopg2
 import psycopg2.extras
+from dotenv import load_dotenv
+
+# Every caller across collector/ and model/ imports this module, so load .env
+# here once with a path anchored to THIS file -- not relying on load_dotenv()'s
+# cwd-dependent search. That cwd-dependent version "worked" on local macOS
+# only because Postgres.app trusts local socket connections without a
+# password; it failed hard (fe_sendauth: no password supplied) the moment
+# this ran on a server with real password auth, since callers in model/ run
+# with cwd=model/ where no .env exists (it lives in collector/).
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 
 def _admin_connect():
