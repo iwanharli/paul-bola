@@ -26,6 +26,16 @@ def _team_name(match_team):
     return _localized((match_team or {}).get("TeamName")) or (match_team or {}).get("Name")
 
 
+def _both_teams_ready(match):
+    """True only if both teams are resolved (real IdTeam). Guards against
+    unplayed knockout matches still carrying W../L.. placeholders."""
+    for side in ("Home", "Away"):
+        team = match.get(side)
+        if not team or not team.get("IdTeam"):
+            return False
+    return True
+
+
 def _player_status(player):
     for key in ("Status", "SpecialStatus", "LineupStatus", "PlayerStatus"):
         value = player.get(key)
@@ -62,7 +72,7 @@ def collect_match_lineups(conn, match):
         timeout=30,
     )
     resp.raise_for_status()
-    data = resp.json()
+    data = resp.json() or {}
 
     count = 0
     for side in ("HomeTeam", "AwayTeam"):
@@ -106,7 +116,15 @@ def collect(conn=None):
             # endpoint is heavier than calendar and not needed for all 104 rows.
             stage_name = _localized(match.get("StageName")) or _localized(match.get("GroupName")) or ""
             status = str(match.get("MatchStatus") or match.get("Status") or "")
-            if any(token in stage_name.lower() for token in ("semi", "final", "third")) or status.lower() not in {"finished", "fulltime"}:
+            wants_lineup = (
+                any(token in stage_name.lower() for token in ("semi", "final", "third"))
+                or status.lower() not in {"finished", "fulltime"}
+            )
+            # Skip matches whose teams aren't resolved yet (e.g. the final /
+            # bronze final still showing "W102"/"L102" placeholders -- FIFA
+            # returns Away=None for these). Pulling them was retrying and
+            # logging a benign NoneType error every 15-min cron cycle.
+            if wants_lineup and _both_teams_ready(match):
                 try:
                     lineups += collect_match_lineups(conn, match)
                 except Exception as exc:  # noqa: BLE001
