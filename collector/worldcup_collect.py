@@ -55,7 +55,12 @@ def collect():
                 "goals2": m.get("goals2", []),
                 "ground": m.get("ground"),
                 "raw": m,
-            }, ["tournament", "match_num"])
+            }, ["tournament", "match_num"],
+                # never let openfootball's not-yet-updated NULL score wipe a
+                # result the faster live fallback (ESPN) already wrote
+                coalesce_cols=["score_ft_team1", "score_ft_team2",
+                               "score_et_team1", "score_et_team2",
+                               "score_pens_team1", "score_pens_team2"])
         conn.commit()
         db.log_collection(conn, "openfootball", "worldcup_matches", "World Cup 2026", "success",
                            f"{len(matches)} matches")

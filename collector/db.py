@@ -74,13 +74,29 @@ def upsert(conn, table: str, row: dict, conflict_col: str = "id"):
         cur.execute(sql, values)
 
 
-def upsert_composite(conn, table: str, row: dict, conflict_cols: list[str]):
+def upsert_composite(conn, table: str, row: dict, conflict_cols: list[str], coalesce_cols=None):
+    """
+    coalesce_cols: columns updated as COALESCE(EXCLUDED.col, table.col) instead
+    of a blanket overwrite -- so an incoming NULL never clobbers an existing
+    non-null value. Used e.g. for worldcup_matches scores, which a faster
+    source (live_result_collect) may fill before openfootball catches up;
+    openfootball's later NULL for that match must not wipe the result.
+    """
+    coalesce_cols = set(coalesce_cols or [])
     cols = list(row.keys())
     values = [json.dumps(v) if isinstance(v, (dict, list)) else v for v in row.values()]
     col_list = ", ".join(cols)
     placeholders = ", ".join(["%s"] * len(cols))
     conflict_list = ", ".join(conflict_cols)
-    updates = ", ".join(f"{c} = EXCLUDED.{c}" for c in cols if c not in conflict_cols)
+    update_parts = []
+    for c in cols:
+        if c in conflict_cols:
+            continue
+        if c in coalesce_cols:
+            update_parts.append(f"{c} = COALESCE(EXCLUDED.{c}, {table}.{c})")
+        else:
+            update_parts.append(f"{c} = EXCLUDED.{c}")
+    updates = ", ".join(update_parts)
     sql = (
         f"INSERT INTO {table} ({col_list}) VALUES ({placeholders}) "
         f"ON CONFLICT ({conflict_list}) DO UPDATE SET {updates}"

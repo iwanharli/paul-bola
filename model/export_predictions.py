@@ -1037,11 +1037,39 @@ def build():
     blend = {k: round(w * eng_arg["result90"][k] + (1 - w) * market[k], 4)
              for k in ("home", "draw", "away")}
 
+    # Result-aware: once the semifinal is finished (score in worldcup_matches,
+    # possibly written by the fast live_result fallback before openfootball),
+    # the card flips from "upcoming" to "finished" carrying the actual result
+    # + whether the model's pick was right. The final scenario then narrows to
+    # the real winner instead of two hypotheticals.
+    def match_result(t1, t2):
+        for r in results_df.itertuples():
+            if {r.team1, r.team2} == {t1, t2} and pd.notna(r.score1) and pd.notna(r.score2):
+                # orient to (t1, t2)
+                if r.team1 == t1:
+                    s1, s2 = int(r.score1), int(r.score2)
+                else:
+                    s1, s2 = int(r.score2), int(r.score1)
+                winner = t1 if s1 > s2 else (t2 if s2 > s1 else "Draw")
+                return {"score": f"{s1}-{s2}", "home_goals": s1, "away_goals": s2, "winner": winner}
+        return None
+
+    sf_result = match_result("England", "Argentina")
+    sf_status = "finished" if sf_result else "upcoming"
+    sf_extra = {}
+    if sf_result:
+        model_pick = max(eng_arg["result90"].items(), key=lambda kv: kv[1])[0]
+        model_pick_name = {"home": "England", "draw": "Draw", "away": "Argentina"}[model_pick]
+        sf_extra = {"actualResult": {**sf_result,
+                                     "modelPick": model_pick_name,
+                                     "modelWasRight": model_pick_name == sf_result["winner"]}}
+
     matches = [{
         "id": "eng-arg-sf",
         "round": "Semi-final", "date": "2026-07-15", "time": "15:00 ET",
         "venue": "Mercedes-Benz Stadium, Atlanta", "ground": "Atlanta",
-        "home": "England", "away": "Argentina", "status": "upcoming",
+        "home": "England", "away": "Argentina", "status": sf_status,
+        **sf_extra,
         "prediction": {**eng_arg, "market": market, "blend": blend,
                        "scorers": {"home": scorers_for("England", eng_arg["xg"]["home"]),
                                    "away": scorers_for("Argentina", eng_arg["xg"]["away"])}},
@@ -1063,23 +1091,31 @@ def build():
     # faced shots in the WC2022 Morocco QF shootout), so there's no reason
     # these should default to a coin flip like the truly-undata'd matchups do.
     OPPONENT_KEEPER = {"England": "Jordan Pickford", "Argentina": "Damián Emiliano Martínez"}
-    for opp in ("England", "Argentina"):
+    # Once the semifinal is decided, only the actual winner's final is real;
+    # drop the hypothetical for the eliminated side.
+    final_opponents = [sf_result["winner"]] if sf_result and sf_result["winner"] in OPPONENT_KEEPER \
+        else ["England", "Argentina"]
+    for opp in final_opponents:
         pm = predict_match(attack, defense, team_idx, "Spain", opp,
                            home_keeper="Unai Simón Mendibil", away_keeper=OPPONENT_KEEPER[opp])
         matches.append({
             "id": f"final-spain-{opp.lower()}",
-            "round": "Final (scenario)", "date": "2026-07-19", "time": "15:00 ET",
+            "round": "Final" if sf_result else "Final (scenario)",
+            "date": "2026-07-19", "time": "15:00 ET",
             "venue": "MetLife Stadium, New York/New Jersey",
             "ground": "New York/New Jersey (East Rutherford)",
-            "home": "Spain", "away": opp, "status": "scenario",
+            "home": "Spain", "away": opp, "status": "upcoming" if sf_result else "scenario",
             "prediction": {**pm,
                            "scorers": {"home": scorers_for("Spain", pm["xg"]["home"]),
                                        "away": scorers_for(opp, pm["xg"]["away"])}},
             "basis": {
                 "strength": {"home": strength("Spain"), "away": strength(opp)},
                 "form": {"home": team_form("Spain"), "away": team_form(opp)},
-                "notes": [f"Conditional on {opp} winning the semi-final.",
-                          "Spain is the tournament's #1 Elo side and beat France 2-0 in the semi."],
+                "notes": [
+                    (f"{opp} reached the final (won the semi vs "
+                     f"{'England' if opp == 'Argentina' else 'Argentina'} {sf_result['score']})."
+                     if sf_result else f"Conditional on {opp} winning the semi-final."),
+                    "Spain is the tournament's #1 Elo side and beat France 2-0 in the semi."],
             },
             "intelligence": enrich("Spain", opp, "New York/New Jersey (East Rutherford)", "2026-07-19"),
         })
