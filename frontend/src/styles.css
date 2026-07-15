@@ -450,12 +450,18 @@ a { color: inherit; text-decoration: none; }
 }
 
 .stat-tile strong {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 7px;
   margin-top: 3px;
   color: var(--text);
   font-size: 20px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
+}
+
+.stat-tile strong .flag {
+  font-size: 20px;
 }
 
 .stat-tile.home strong { color: var(--home); }
@@ -643,23 +649,20 @@ a { color: inherit; text-decoration: none; }
 }
 
 .flag {
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex: 0 0 auto;
-  width: 30px;
-  height: 24px;
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  border-radius: 6px;
-  background: rgba(255, 255, 255, 0.05);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1;
   vertical-align: middle;
+  border-radius: 4px;
+  overflow: hidden;
 }
 
 .flag span {
   display: block;
-  transform: translateY(-0.5px);
+  line-height: 1;
 }
 
 .player-avatar {
