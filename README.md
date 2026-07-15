@@ -59,6 +59,84 @@ ecosystem.config.js        # PM2 config for scheduled collection (deploy)
   headless + Cloudflare-blocked. **Not needed** — ESPN covered the same data.
 - **FBref** — 403 on scrape; also lost its Opta xG licence Jan 2026 (stale).
 
+### Candidate sources to fill missing frontend data
+
+Current frontend gaps are mostly final-scenario context: odds/market for possible
+finals, referee assignment, H2H, weather for all possible venues, and
+anytime-scorer/player context. These sources are worth adding next. Free-tier
+terms can change, so verify quota/TOS before wiring into cron.
+
+| Source | Need register? | API key? | Scrape/API | Best for | Notes |
+|---|---:|---:|---|---|---|
+| **The Odds API** | **Yes** | **Yes** | API | Match odds, bookmaker consensus, market movement | Best next source for `match_odds_snapshot`; free tier is quota-limited. |
+| **football-data.org** | **Yes** | **Yes** | API | Fixtures, results, standings, teams, scorers, sometimes referees | Good stable fallback for schedule/result/H2H-style metadata. Free plan is rate-limited. |
+| **Sportmonks Football API** | **Yes** | **Yes** | API | Lineups, injuries, player stats, referee, odds, predictions | Broadest single-provider option, but useful endpoints may require a paid plan. Check World Cup coverage first. |
+| **API-FOOTBALL** | **Yes** | **Yes** | API | Fixtures, lineups, injuries, odds, team/player stats | Similar to Sportmonks; often easier than scraping, but quota and endpoint access depend on plan. |
+| **OpenFootball** | No | No | Static GitHub data | Fixtures, groups, results, historical tournament data | Safe fallback; open dataset, but not enough for live lineups/odds/referee. |
+| **Open-Meteo** | No | No | API | Forecast/historical weather by stadium coordinate | Already used; extend it to every possible final venue/scenario. |
+| **Wikidata** | No | No | SPARQL/API | Team/country/stadium metadata, coordinates, image/Commons links | Good for normalized IDs and venue coordinates; use polite rate limits and User-Agent. |
+| **TheSportsDB** | Optional | Optional/free key may be needed for some endpoints | API | Team badges, player images, event metadata | Useful for making FE visual assets richer; not a core prediction source. |
+| **FIFA Match Centre** | No account for public pages | No official public key | Scrape/public page data | Official lineups, match officials, result confirmation | Most authoritative for referee/confirmed lineups, but scrape carefully and cache. |
+| **ESPN soccer pages / JSON endpoints** | No | No | Public JSON/pages | Scoreboard, team stats, lineups, odds, commentary | Already used; keep as primary public source but expect undocumented endpoint changes. |
+| **worldfootball.net** | No | No | Scrape | H2H, referee/match history | Good low-frequency fallback. Cache aggressively; avoid aggressive scraping. |
+| **11v11** | No | No | Scrape | International H2H and team history | Useful for H2H enrichment if pages are accessible. |
+| **Transfermarkt** | No account for public pages | No | Scrape | Injuries, suspensions, squad/player market context | Treat as manual/low-frequency only; anti-bot/TOS risk is higher. |
+
+Recommended implementation order:
+
+1. **DONE** — `collector/odds_api_collect.py` adds **The Odds API** support for
+   missing final odds and market movement. Requires `THE_ODDS_API_KEY`.
+2. **DONE** — `collector/final_scenarios_collect.py` extends **Open-Meteo** to
+   unfinished semi/third-place/final scenarios. No key required.
+3. **DONE** — `collector/football_data_collect.py` adds **football-data.org**
+   as a fixtures/results/referee/H2H fallback. Requires `FOOTBALL_DATA_TOKEN`.
+4. **DONE** — `collector/wikidata_collect.py` adds **Wikidata** team/venue
+   metadata. No key required; it is resumable and may stop as `partial` on 429.
+5. **DONE** — `collector/fifa_match_context_collect.py` adds **FIFA Match
+   Centre** match index + lineup/match-sheet storage. No key required.
+6. **DONE** — `collector/api_football_collect.py` and
+   `collector/sportmonks_collect.py` add optional provider raw context stores.
+   Requires `API_FOOTBALL_KEY` and/or `SPORTMONKS_TOKEN`.
+
+Optional env vars for registered providers:
+
+```bash
+THE_ODDS_API_KEY=...
+THE_ODDS_API_SPORT_KEYS=soccer_fifa_world_cup,soccer_international
+THE_ODDS_API_REGIONS=us,uk,eu
+
+FOOTBALL_DATA_TOKEN=...
+FOOTBALL_DATA_COMPETITION=WC
+
+API_FOOTBALL_KEY=...
+API_FOOTBALL_LEAGUE=1
+API_FOOTBALL_SEASON=2026
+
+SPORTMONKS_TOKEN=...
+SPORTMONKS_BASE=https://api.sportmonks.com/v3/football
+
+# metadata is slower and not needed every 15 minutes
+REFRESH_METADATA=1
+```
+
+New DB tables/columns added for provenance:
+
+| Table | Purpose |
+|---|---|
+| `fifa_match_index` | Maps FIFA match IDs to teams/date so officials and lineups can be joined to frontend matches. |
+| `fifa_match_lineups` | FIFA match-sheet/player rows; starter/status may stay null before confirmed lineups. |
+| `football_data_matches` | football-data.org fixture/result/referee fallback. |
+| `wikidata_entities` | Team/venue Wikidata IDs, coordinates, images, raw claims. |
+| `provider_match_context` | Raw optional provider rows from API-Football/Sportmonks. |
+| `match_odds_snapshot` extra columns | `source_event_id`, `sport_key`, `commence_time`, `raw` for The Odds API provenance. |
+| `projected_team_lineups` | Derived projected XI from ESPN starter frequency + FIFA squad fallback. |
+| `team_availability_coverage` | Derived team-news coverage from FIFA squad `SpecialStatus`; does not claim every player is fit. |
+| `team_player_attack_summary` | Derived fallback top attackers from FIFA shot events for teams with no scorer. |
+
+For every new source, store `source_name`, `source_url`, `fetched_at`,
+`raw_payload`, and a confidence/officialness flag. The AI narrative should know
+whether a fact came from an official source, a market API, or a scraped fallback.
+
 ## The model
 
 **Dixon-Coles on xG** (not raw goals), fit on all 101 finished matches:
@@ -111,6 +189,119 @@ takes pens" is a real-world prior overriding the small sample. Caveats:
 tournament-xG based (6 matches), penalty rate high-variance, role assumed
 constant.
 
+## Frontend AI narrative packet
+
+The React match-detail page includes a **Narasi AI** card. This is not an LLM
+call yet; it is the curated packet that should be sent to an AI narrator when
+that feature is wired in. Keep it compact and structured — do **not** send the
+whole database.
+
+Recommended payload per upcoming match:
+
+```json
+{
+  "match": {
+    "home": "England",
+    "away": "Argentina",
+    "round": "Semi-final",
+    "kickoffUtc7": "2026-07-16 02:00 WIB",
+    "venue": "Mercedes-Benz Stadium, Atlanta",
+    "status": "upcoming"
+  },
+  "prediction": {
+    "result90": {"home": 0.36, "draw": 0.31, "away": 0.33},
+    "advance": {"home": 0.52, "away": 0.48},
+    "xg": {"home": 1.25, "away": 1.18},
+    "topScorelines": [{"score": "1-1", "p": 0.12}],
+    "market": {"home": 0.34, "draw": 0.30, "away": 0.36},
+    "blend": {"home": 0.36, "draw": 0.31, "away": 0.33}
+  },
+  "teams": {
+    "home": {
+      "elo": 2097,
+      "attack": 0.71,
+      "defense": -0.06,
+      "xgFor": 12.26,
+      "goals": 13,
+      "goalsMinusXg": 0.74,
+      "route": []
+    },
+    "away": {
+      "elo": 2177,
+      "attack": 0.76,
+      "defense": -0.15,
+      "xgFor": 11.3,
+      "goals": 17,
+      "goalsMinusXg": 5.7,
+      "route": []
+    }
+  },
+  "players": {
+    "homeScorers": [],
+    "awayScorers": [],
+    "availability": []
+  },
+  "context": {
+    "weather": {},
+    "odds": [],
+    "referee": null,
+    "h2h": [],
+    "dataWarnings": []
+  },
+  "modelAudit": {
+    "accuracy": 0.71,
+    "avgLogLoss": 0.831,
+    "splitDate": "2026-06-28"
+  }
+}
+```
+
+Narration rules:
+- Use only the packet data. Do not invent injuries, tactics, news, or lineup
+  details.
+- Treat `blend` as the headline probability when present; keep pure model,
+  market, and scoreline numbers as supporting context.
+- Always mention uncertainty: scorelines are scenarios, not deterministic
+  predictions.
+- Surface `dataWarnings` plainly, e.g. missing H2H, referee, odds, weather, or
+  team-news data.
+- A good narrative should cover: headline probability, key statistical tension,
+  player watchlist, model risk, and one concise probabilistic takeaway.
+
+Recommended OpenAI model setup:
+
+| Use case | Model |
+|---|---|
+| Best possible narrative for major matches | `gpt-5.6-sol` |
+| Production default: strong quality / reasonable cost | `gpt-5.6-terra` |
+| Cheap batch generation for many cards | `gpt-5.6-luna` |
+
+Suggested default for this app:
+
+```json
+{
+  "model": "gpt-5.6-terra",
+  "reasoning": {"effort": "high"},
+  "temperature": 0.35,
+  "max_output_tokens": 900
+}
+```
+
+For semifinals/finals or a future "deep analysis" button, upgrade the same
+packet to `gpt-5.6-sol`. For regenerating many summaries in bulk, use
+`gpt-5.6-luna`. Keep output structured so the frontend can render it safely:
+
+```json
+{
+  "headline": "...",
+  "summary": "...",
+  "keyFactors": [],
+  "modelRisks": [],
+  "playersToWatch": [],
+  "takeaway": "..."
+}
+```
+
 ## Known limitations & shortcomings (honest)
 
 1. **We can't beat the market.** With only free public data, the model's best
@@ -162,14 +353,18 @@ cd ../model
 
 **Automated collection (PM2, `ecosystem.config.js`, 15-min cron).** The
 orchestrator auto-discovers matches in a rolling window and refreshes, tournament-wide:
-worldcup scores, Elo, ESPN roster/stats/odds, FIFA shots/squads/officials,
-weather, and the player crosswalk — all idempotent (upsert), verified end-to-end.
+worldcup scores, Elo, ESPN roster/stats/odds, FIFA shots/squads/officials/match
+context, scenario weather, optional registered providers, derived context
+(`projected_team_lineups`, `team_availability_coverage`,
+`team_player_attack_summary`), and the player crosswalk — all idempotent
+(upsert), verified end-to-end.
 
 **Not auto-refetched by design** (documented in `orchestrate.py` / `ecosystem.config.js`):
 - *Static* — `statsbomb_shots` (historical), Understat/ASA club seasons (2025/26
   complete). Seed once; `--full` or `REFRESH_CLUB=1` forces a re-pull.
-- *Manual* — `h2h_history`, `match_odds_snapshot`, `player_availability`,
-  `referee_tendency` (no free structured source; curated by hand).
+- *Manual fallback* — curated rows in `h2h_history`, `match_odds_snapshot`,
+  `player_availability`, `referee_tendency`. Optional provider collectors can
+  now add sourced rows where API coverage/credentials exist.
 
 First-time DB seed steps are listed at the top of `ecosystem.config.js`.
 
