@@ -346,13 +346,13 @@ packet to `gpt-5.6-sol`. For regenerating many summaries in bulk, use
 ## Multi-competition roadmap (extending beyond WC2026)
 
 The goal is for this to forecast *any* competition, not just the World Cup.
-One of four layers is done; three still hardcode WC2026.
+Two of four layers are done; the forecast layer and frontend still hardcode WC2026.
 
-| Layer | Status | Blocker |
+| Layer | Status | Notes |
 |---|---|---|
 | Source-data plumbing (`collector/config.py`) | ✅ Done | API ids + source URLs are a per-competition registry entry, selected via `COMPETITION=…` |
-| **DB isolation** | ❌ Not done | No `competition` column on the tables — a second competition would **collide** with WC2026 rows in the same tables |
-| **Forecast layer** (`model/export_predictions.py`) | ❌ Not done | Matchups, venues, and the SF/final freezes are hardcoded to WC2026 |
+| DB isolation | ✅ Done (Phase 1) | Every competition-scoped table has a `competition` column (backfilled `wc2026`); collectors stamp `config.COMPETITION`; team/venue-keyed tables have composite keys so the same team name can exist in two competitions without colliding |
+| **Forecast layer** (`model/export_predictions.py`) | ❌ Not done | ~1326 lines, ~49 hardcoded WC2026 references (hero match England vs Argentina, `SF_KICKOFF`, `eng-arg-sf` keys, Spain final scenarios, named keepers, hand-written narratives, "Atlanta"/"15:00 ET") |
 | **Frontend** | ❌ Not done | No competition switcher; everything polls a single `predictions.json` |
 
 **Recommended next target: a domestic club league (e.g. Premier League), not another
@@ -372,15 +372,61 @@ honest test of the "parameterized" claim:
 
 Phased plan:
 
-1. **DB isolation (foundational, required first).** Add a `competition` column to
-   every table and make it part of the upsert conflict key. Without this, two
-   competitions overwrite each other. This is the real blocker; the rest follows cleanly.
+1. ✅ **DB isolation (foundational, required first)** — done in Phase 1. Added a
+   `competition` column to every scoped table and made it part of the upsert
+   conflict key so two competitions can't overwrite each other. Deliberately left
+   unscoped: cross-tournament training pools (`statsbomb_shots`, `shootout_history`),
+   global reference (`team_elo_ratings`, `wikidata_entities`, `player_crosswalk`,
+   `teams`, `competitions`, `h2h_history`), and reference/legacy tables whose scoping
+   is decided in Phase 3 (`matches`, `match_stats`, `understat_matches`,
+   `football_data_matches`).
 2. **Generalize the forecast layer.** Move matchups/venues/schedule out of hardcode
    and drive them from fixtures data; make the freeze mechanism generic (freeze any
    kickoff, not just `eng-arg-sf`).
 3. **Register EPL** in `config.py` and run collectors with `COMPETITION=epl`; run the
    held-out validation (the model should be *more* competitive here thanks to the data volume).
 4. **Frontend competition switcher** (dropdown; per-competition `predictions-<comp>.json`).
+
+### Phases 2 + 3 should be done together (against EPL, not in a vacuum)
+
+Phase 2 is the biggest chunk — a real rewrite of `export_predictions.py`, not a
+patch. Two reasons **not** to do it standalone:
+
+- **Nothing validates it.** Generalizing the forecast layer with no second
+  competition wired up is guesswork — you only learn whether the abstraction is
+  right once real EPL fixtures flow through it. So do Phase 2 *while* wiring EPL
+  (Phase 3): each hardcoded assumption is removed and immediately tested by a live
+  match. Phase 1's DB isolation makes this safe — EPL rows can't contaminate WC2026.
+- **WC2026 is nearly over** (final is close). Rewriting the script that's actively
+  serving the running tournament is risk with no near-term payoff.
+
+**Combined Phase 2 + 3 work plan (target: English Premier League):**
+
+1. **Register `epl` in `config.py`** — ESPN `eng.1`, openfootball `england.json`,
+   Understat league `EPL`, Odds API `soccer_epl`; no FIFA API (FIFA-tournaments only).
+   Decide the Phase-3 scoping of `understat_matches`/`matches`/`match_stats` here
+   (Understat becomes EPL's *primary* match+xG source, not just player-form reference).
+2. **Fixtures-driven forecast.** Replace the hardcoded hero match / `SF_KICKOFF` /
+   `eng-arg-sf` / Spain-final-scenario block with a loop over upcoming fixtures pulled
+   from the DB (filtered `WHERE competition = …`). Match keys, kickoffs, venues, and
+   home/away all come from the fixture row.
+3. **Generic freeze.** `freeze_prediction()` already takes a `match_key` + kickoff —
+   drive it per-fixture instead of two literal WC keys. One frozen row per upcoming match.
+4. **Template the narratives.** The hand-written England/Argentina prose becomes a
+   data-driven generator (strengths/form/xG deltas) so any matchup gets a basis, not
+   just the semifinal.
+5. **Competition-filter every model query.** `dixon_coles.py`, `scorer_model.py`,
+   `final_predict.py`, and the export SQL must all filter to the active competition so
+   EPL strength isn't computed from WC matches (or vice-versa).
+6. **Held-out validation on EPL.** Train on part of the season, test on the rest —
+   with 380 matches/season the model should be materially more competitive than on
+   WC2026's ~64. This is the honest proof the architecture generalized.
+7. **Frontend (Phase 4) switcher.** Per-competition `predictions-<comp>.json` + a
+   dropdown; the polling layer picks the file for the selected competition.
+
+Knockout-vs-league shape differences (no group/bracket, no ET/shootout in league play)
+fall out naturally once the forecast is fixtures-driven — league fixtures simply never
+carry knockout metadata, so those branches stay dormant instead of being special-cased.
 
 ## Running it
 
